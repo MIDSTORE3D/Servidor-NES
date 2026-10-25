@@ -76,6 +76,7 @@ button:focus-visible{outline:3px solid #f2cb61;outline-offset:4px}
 </main>
 <script>
 'use strict';
+/* Retro NFC v8 - Diagnóstico de entradas e sincronização. */
 /* Retro NFC v7: controles virtuais leves; núcleos NES selecionáveis. */
 const loading=document.querySelector('#loading');
 const error=document.querySelector('#error');
@@ -98,12 +99,29 @@ function showLoaded(){
  for(const name of controllerButtons){if(pressed.get(name)?.size)sendInput(name,true)}
 }
 function ejs(){return window.EJS_emulator||null}
-function sendInput(name,down){
- if(!gameReady)return;
+// Diagnóstico: ?teste=semcomando evita enviar entradas; ?entrada=quadro
+// envia eventos na próxima atualização visual (mantendo a ordem dos toques).
+const debugParams=new URLSearchParams(location.search);
+const semComando=debugParams.get('teste')==='semcomando';
+const entradaPorQuadro=debugParams.get('entrada')==='quadro';
+let filaComandos=[],comandosFrame=0;
+function enviarComandoAgora(name,down){
  const manager=ejs()?.gameManager;
  if(!manager||typeof manager.simulateInput!=='function')return;
  const ix=inputIndex[name];if(ix===undefined)return;
  try{manager.simulateInput(0,ix,down?1:0)}catch(err){console.warn('[NES] Falha no controle',err)}
+}
+function processarFila(){
+ comandosFrame=0;
+ const atual=filaComandos;filaComandos=[];
+ for(const [nome,pressionado] of atual)enviarComandoAgora(nome,pressionado);
+ if(filaComandos.length)comandosFrame=requestAnimationFrame(processarFila);
+}
+function sendInput(name,down){
+ if(!gameReady||semComando)return;
+ if(!entradaPorQuadro){enviarComandoAgora(name,down);return}
+ filaComandos.push([name,down]);
+ if(!comandosFrame)comandosFrame=requestAnimationFrame(processarFila);
 }
 function keyState(name,source,down){
  if(!controllerButtons.includes(name))return;
