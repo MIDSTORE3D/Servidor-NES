@@ -1,44 +1,166 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0a1422">
-  <meta name="description" content="Experimente um jogo original de NES direto no celular com EmulatorJS e NFC.">
-  <title>Retro NFC · Teste de cartucho NES</title>
-  <style>
-    :root{color-scheme:dark;--bg:#0a1422;--surface:#111f32;--line:#28445a;--aqua:#5de1c9;--text:#ecf6fa;--sub:#98b6c5}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#152b41 0%,#0a1422 65%);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);min-height:100dvh}button{font:inherit;cursor:pointer}header{padding:14px max(16px,calc((100vw - 920px)/2));display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #29435e80}header .brand{font-weight:900;letter-spacing:.09em;color:var(--aqua);display:flex;align-items:center;gap:9px}header .brand strong{background:var(--aqua);color:var(--bg);border-radius:8px;padding:7px}header button{background:#182d40;color:#d6f5f4;border:1px solid var(--line);padding:9px 12px;border-radius:9px}main{max-width:920px;margin:0 auto;padding:18px 14px 18px}h1{font-size:clamp(19px,4vw,29px);margin:0 0 6px;letter-spacing:-.025em}.sub{font-size:13px;color:var(--sub);margin:0 0 15px;line-height:1.5}.chips{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}.chip{font-size:11px;font-weight:750;letter-spacing:.04em;padding:6px 9px;border:1px solid #2c5060;border-radius:40px;color:#bfdfeb;background:#13243a}.console{background:#03070d;border:2px solid #32566b;border-radius:16px;box-shadow:0 18px 65px #0009;overflow:hidden;position:relative}.console:before{content:'NFC  /  NES  /  001';display:block;color:#638aa0;letter-spacing:.22em;font-size:9px;font-weight:850;text-align:center;background:#101f30;padding:8px}.emulator{width:100%;height:min(73dvh,640px);min-height:310px;background:#000}.status{margin:13px 0 0;color:var(--sub);font-size:12px;line-height:1.55}footer{margin-top:16px;color:#7896a9;font-size:11px;line-height:1.55}.accent{color:var(--aqua)}.important{background:#102e34;padding:8px 11px;border-radius:10px;border:1px solid #296c65}#warning{color:#ffcaa8}a{color:var(--aqua)}@media(max-width:680px){header{padding:11px 14px}header .brand{font-size:13px}header button{font-size:12px}main{padding:12px 8px}.console{border-radius:10px}.emulator{height:calc(100dvh - 185px);min-height:315px}h1{font-size:19px}.sub{font-size:12px;margin-bottom:10px}.chip{font-size:10px;padding:5px 7px}.chips{gap:5px;margin-bottom:8px}.status{font-size:11px}}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#081727" />
+<title>Retro NFC · Coleta-Estrelas NES</title>
+<style>
+:root { color-scheme: dark; --a:#50dfc8; --bg:#071421; --panel:#102339; --edge:#29455d; --text:#eff8fc; --muted:#a3bdce }
+* { box-sizing: border-box; }
+body { margin:0; min-height:100dvh; background:radial-gradient(ellipse at 50% 0%,#19334c,#071421 65%); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,sans-serif }
+header { max-width:880px; margin:0 auto; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px }
+.brand { font-size:15px; letter-spacing:2px; color:var(--a); font-weight:900 }
+.brand b { padding:7px; background:var(--a); color:#061624; border-radius:7px; margin-right:6px }
+main { max-width:740px; margin:0 auto; padding:7px 12px 22px; }
+h1 { font-size:clamp(18px,3.3vw,27px); margin:3px 0 6px } h1 span { color:var(--a) }
+p { margin:0; line-height:1.48 } .intro { font-size:12px; color:var(--muted); margin-bottom:12px }
+.screenShell { background:#050a0e; border:2px solid #38637a; border-radius:15px; overflow:hidden; box-shadow:0 16px 40px #0008 }
+.screenShell .topbar { background:#14263a; height:28px; padding:7px 14px; text-align:center; color:#82abb9; font-size:10px; letter-spacing:3px; font-weight:800 }
+.screenBox { position:relative; display:flex; align-items:center; justify-content:center; background:#000; }
+canvas { display:block; width:100%; max-height:min(60dvh,520px); aspect-ratio:256 / 240; object-fit:contain; image-rendering:pixelated; background:#000 }
+#overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; background:#07121af2; padding:20px; text-align:center; color:#b9dded; font-size:13px }
+#overlay[hidden] { display:none } #overlay strong { font-size:17px; color:#f1fbff } #overlay .spinner { width:28px; height:28px; border:3px solid #335266; border-top-color:var(--a); border-radius:50%; animation:spin .85s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+#status { padding:9px 12px; margin:10px 0 0; border:1px solid #28465a; color:#b6d3e0; background:#0f2637; font-size:12px; border-radius:9px }
+#status.bad { border-color:#b65c5c; background:#35202a; color:#ffe0db } #status.good { border-color:#367363; color:#b7efe0 }
+.controls { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid #243f59; background:#102236; border-radius:15px; padding:12px 13px; margin-top:12px; -webkit-user-select:none; user-select:none; touch-action:none }
+.dpad { display:grid; grid-template-columns:repeat(3,54px); grid-template-rows:repeat(3,49px); gap:2px; flex-shrink:0 }
+.gameButton { touch-action:none; border:1px solid #52768b; color:#dff8ff; background:#27455d; border-radius:11px; font-size:18px; font-weight:800; font-family:inherit; cursor:pointer; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent }
+.gameButton.pressed,.gameButton:active { background:var(--a); color:#041422; transform:scale(.96) }
+.gameButton:focus-visible { outline:2px solid var(--a); outline-offset:2px }
+.dpad .up { grid-row:1; grid-column:2 }.dpad .left { grid-row:2; grid-column:1 }.dpad .down { grid-row:2; grid-column:2 }.dpad .right { grid-row:2; grid-column:3 }
+.actions { display:flex; flex-direction:column; align-items:center; gap:13px; justify-content:center; flex:1 }
+.ab { display:flex; gap:13px; align-items:center; justify-content:center }
+.ab .gameButton { width:62px; height:62px; border-radius:50%; background:#772d4b; border-color:#c75881 }
+.ab .gameButton.pressed { background:var(--a); color:#05202b }
+.startSelect { display:flex; gap:12px }.startSelect .gameButton { padding:9px 12px; min-width:72px; font-size:11px; border-radius:30px }
+.tools { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap }
+.tool { background:#1b344a; color:#c5e7ed; border:1px solid #35566a; border-radius:9px; padding:8px 12px; font-size:12px; cursor:pointer }
+footer { color:#8faabb; font-size:11px; margin-top:14px; line-height:1.55 }
+a { color:#66e5d6 }
+@media(max-width:560px) {
+ header { padding:12px 12px } .brand { font-size:12px; letter-spacing:1px }
+ main { padding:2px 8px 15px } .screenShell { border-radius:11px } canvas { max-height:min(48dvh,480px) }
+ .controls { padding:10px 6px; gap:5px; margin-top:8px } .dpad { grid-template-columns:repeat(3,min(14vw,49px));grid-template-rows:repeat(3,45px);gap:1px } .ab .gameButton { width:min(15vw,56px); height:min(15vw,56px) } .ab { gap:7px }
+ .startSelect { gap:6px } .startSelect .gameButton { min-width:55px; padding:9px 7px; font-size:9px }
+ .intro { margin-bottom:7px } footer { font-size:10px }
+}
+</style>
 </head>
 <body>
-<header><div class="brand"><strong>8BIT</strong> RETRO NFC</div><button id="share">↗ Compartilhar jogo</button></header>
+<header><div class="brand"><b>8BIT</b> RETRO NFC</div><button class="tool" id="share" type="button">↗ Compartilhar</button></header>
 <main>
-<h1>Coleta-Estrelas <span class="accent">· NES</span></h1>
-<p class="sub">Um minijogo original em uma ROM real de Nintendinho. Não precisa instalar emulador: ele roda dentro desta página.</p>
-<div class="chips"><span class="chip">🎮 Setas: movimentar</span><span class="chip">⭐ Pegue as estrelas</span><span class="chip">SELECT: zerar pontos</span><span class="chip">📱 Controles na tela</span></div>
-<section class="console" aria-label="Emulador de Nintendo Entertainment System"><div id="game" class="emulator"><p style="color:#93b1c0;text-align:center;padding:60px 12px;font-size:13px">Preparando o emulador...<br>Se necessário, toque em Play quando aparecer.</p></div></section>
-<p id="warning" class="status" role="status"></p>
-<p class="status important">💡 <b>Experiência NFC:</b> depois de publicar no GitHub Pages, grave o endereço desta página na TAG. Ao aproximar o celular, o link abre diretamente este jogo.</p>
-<footer>ROM de demonstração original: <b>24 KB</b>. O emulador é carregado do CDN oficial do <a href="https://emulatorjs.org/" target="_blank" rel="noopener noreferrer">EmulatorJS</a> e precisa de conexão com a internet. Este é um teste técnico, sem jogos comerciais.</footer>
+<h1>Coleta-Estrelas <span>· NES</span></h1>
+<p class="intro">Teste com uma ROM original de NES · Setas para mover · Colete as estrelas</p>
+<div class="screenShell">
+  <div class="topbar">NFC / NES / TESTE 002</div>
+  <div class="screenBox">
+    <canvas id="screen" width="256" height="240" aria-label="Tela do jogo NES"></canvas>
+    <div id="overlay" role="status"><div class="spinner" id="spinner"></div><strong id="loadingTitle">Preparando o jogo...</strong><span id="loadingDetail">Baixando a ROM e o emulador</span></div>
+  </div>
+</div>
+<div id="status" role="status">Iniciando teste...</div>
+<div class="controls" aria-label="Controle de Nintendo NES">
+  <div class="dpad">
+    <button class="gameButton up" data-btn="UP" aria-label="Cima" type="button">▲</button>
+    <button class="gameButton left" data-btn="LEFT" aria-label="Esquerda" type="button">◀</button>
+    <button class="gameButton down" data-btn="DOWN" aria-label="Baixo" type="button">▼</button>
+    <button class="gameButton right" data-btn="RIGHT" aria-label="Direita" type="button">▶</button>
+  </div>
+  <div class="actions">
+    <div class="ab"><button class="gameButton" data-btn="B" type="button">B</button><button class="gameButton" data-btn="A" type="button">A</button></div>
+    <div class="startSelect"><button class="gameButton" data-btn="SELECT" type="button">SELECT</button><button class="gameButton" data-btn="START" type="button">START</button></div>
+  </div>
+</div>
+<div class="tools"><button id="restart" class="tool" type="button">↻ Reiniciar jogo</button><button id="reload" class="tool" type="button">⟳ Recarregar página</button></div>
+<footer>Controles no computador: setas para mover, <b>X</b> = A, <b>Z</b> = B, <b>Enter</b> = START e <b>Shift direito</b> = SELECT. No celular, use os botões acima.<p style="margin-top:6px">Jogo de demonstração original, sem ROMs comerciais. O emulador <a href="https://github.com/bfirsh/jsnes" target="_blank" rel="noopener">JSNES</a> é carregado pela internet. A TAG NFC pode abrir este mesmo endereço quando o teste funcionar.</p></footer>
 </main>
 <script>
-  window.EJS_player = '#game';
-  window.EJS_core = 'nes';
-  window.EJS_gameName = 'Coleta-Estrelas · Retro NFC';
-  window.EJS_gameUrl = new URL('./jogos/coleta-estrelas.nes', location.href).href;
-  window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
-  window.EJS_language = 'pt-BR';
-  window.EJS_volume = 0.55;
-  document.getElementById('share').addEventListener('click', async () => {
-    try {
-      if(navigator.share){await navigator.share({title:'Coleta-Estrelas — NES',url:location.href})}
-      else if(navigator.clipboard){await navigator.clipboard.writeText(location.href);document.getElementById('share').textContent='✓ Link copiado'}
-    }catch(e){if(e.name!=='AbortError')document.getElementById('warning').textContent='Copie o endereço pelo navegador.'}
-  });
-  function romCheck(){fetch('./jogos/coleta-estrelas.nes',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('ROM não encontrada (HTTP '+r.status+').');return r.arrayBuffer()}).then(b=>{if(new Uint8Array(b).slice(0,4).join(',')!=='78,69,83,26')throw Error('Arquivo NES inválido.');}).catch(e=>{document.getElementById('warning').textContent='Erro ao carregar o jogo: '+e.message+' Confira se a pasta jogos foi enviada ao GitHub.';});}
-  romCheck();
+'use strict';
+const statusEl = document.querySelector('#status');
+const overlay = document.querySelector('#overlay');
+const titleEl = document.querySelector('#loadingTitle');
+const detailEl = document.querySelector('#loadingDetail');
+const spinner = document.querySelector('#spinner');
+const canvas = document.querySelector('#screen');
+const ctx = canvas.getContext('2d',{alpha:false});
+const rgba = ctx.createImageData(256,240);
+let nes = null, frames = 0, lastTick = 0, elapsed = 0, hasStarted=false;
+const pressed = new Map();
+function status(message,type='') { statusEl.textContent=message;statusEl.className=type; }
+function stage(title,detail){titleEl.textContent=title;detailEl.textContent=detail;}
+function fail(message){ status('ERRO: '+message,'bad');stage('Não foi possível iniciar', message);spinner.style.display='none';overlay.hidden=false;console.error('[RetroNFC]',message); }
+function loadScript(url){return new Promise((resolve,reject)=>{
+ const el=document.createElement('script');el.src=url;el.async=true;const id=setTimeout(()=>{el.remove();reject(new Error('Tempo esgotado'))},12000);
+ el.onload=()=>{clearTimeout(id);resolve()};el.onerror=()=>{clearTimeout(id);reject(new Error('Falha ao baixar o emulador'))};document.head.appendChild(el);
+});}
+async function ensureJSNES(){
+ if(window.jsnes?.NES) return;
+ const cdns=['https://cdn.jsdelivr.net/npm/jsnes@2.1.0/dist/jsnes.min.js','https://unpkg.com/jsnes@2.1.0/dist/jsnes.min.js','https://cdnjs.cloudflare.com/ajax/libs/jsnes/2.1.0/jsnes.min.js'];
+ for(const cdn of cdns){try{await loadScript(cdn);if(window.jsnes?.NES)return;}catch(e){console.warn('[RetroNFC]',cdn,e.message)}}
+ throw Error('Não foi possível carregar o JSNES. Verifique sua conexão ou bloqueadores de conteúdo.');
+}
+function imageFrame(buffer){
+ const d=rgba.data;
+ for(let i=0,j=0;i<buffer.length;i++,j+=4){const p=buffer[i];d[j]=p&255;d[j+1]=(p>>8)&255;d[j+2]=(p>>16)&255;d[j+3]=255;}
+ ctx.putImageData(rgba,0,0);frames++;
+ if(frames===4){overlay.hidden=true;status('✓ ROM NES carregada. Jogo em execução!','good');}
+}
+function activePress(name,source,down){
+ if(!nes || !window.jsnes?.Controller)return;
+ const b=window.jsnes.Controller['BUTTON_'+name];if(b===undefined) return;
+ let holders=pressed.get(name);if(!holders){holders=new Set();pressed.set(name,holders)}
+ const was=holders.size>0;
+ if(down)holders.add(source);else holders.delete(source);
+ if(!was && holders.size)nes.buttonDown(1,b);
+ if(was && !holders.size)nes.buttonUp(1,b);
+ document.querySelectorAll(`[data-btn="${name}"]`).forEach(el=>el.classList.toggle('pressed',holders.size>0));
+}
+const keymap={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',KeyX:'A',KeyZ:'B',Enter:'START',ShiftRight:'SELECT'};
+document.addEventListener('keydown',e=>{const btn=keymap[e.code];if(!btn)return;e.preventDefault();activePress(btn,'keyboard',true)});
+document.addEventListener('keyup',e=>{const btn=keymap[e.code];if(!btn)return;e.preventDefault();activePress(btn,'keyboard',false)});
+window.addEventListener('blur',()=>{for(const key of Object.values(keymap))activePress(key,'keyboard',false)});
+for(const el of document.querySelectorAll('[data-btn]')){
+ const btn=el.dataset.btn;el.addEventListener('pointerdown',e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch{}activePress(btn,'pointer:'+e.pointerId,true)});
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,e=>{e.preventDefault();activePress(btn,'pointer:'+e.pointerId,false)});
+ el.addEventListener('contextmenu',e=>e.preventDefault());
+}
+let padStates={};function scanGamepad(){
+ if(!nes||!navigator.getGamepads)return;
+ const pad=Array.from(navigator.getGamepads()||[]).find(Boolean);const next={};
+ if(pad){const b=i=>Boolean(pad.buttons[i]?.pressed);const x=pad.axes[0]||0,y=pad.axes[1]||0;
+ Object.assign(next,{UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)});}
+ for(const key of ['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT']){
+ const on=!!next[key];if(on!==!!padStates[key])activePress(key,'gamepad',on);
+ }padStates=next;
+}
+function tick(t){if(!nes)return;scanGamepad();if(!lastTick)lastTick=t;elapsed+=Math.min(70,t-lastTick);lastTick=t;
+ let steps=0;while(elapsed>=1000/60&&steps<3){try{nes.frame()}catch(e){nes=null;fail('Falha na execução da ROM: '+e.message);return} elapsed-=1000/60;steps++}
+ if(steps===3&&elapsed>150)elapsed=0;
+ requestAnimationFrame(tick);
+}
+async function start(){
+ try{
+ stage('Carregando ROM...','Conferindo jogos/coleta-estrelas.nes');status('Baixando a ROM NES...');
+ const res=await fetch('./jogos/coleta-estrelas.nes',{cache:'no-store'});
+ if(!res.ok)throw Error('ROM não encontrada: HTTP '+res.status+' (pasta jogos).');
+ const buffer=new Uint8Array(await res.arrayBuffer());
+ if(buffer.length<16||String.fromCharCode(...buffer.subarray(0,4))!=='NES\x1a')throw Error('O arquivo não possui cabeçalho NES válido.');
+ stage('Carregando emulador...','JSNES para navegador');status('ROM encontrada ('+(buffer.length/1024).toFixed(1)+' KB). Carregando JSNES...');
+ await ensureJSNES();
+ let binary='';for(let i=0;i<buffer.length;i+=8192)binary+=String.fromCharCode(...buffer.subarray(i,i+8192));
+ nes=new window.jsnes.NES({onFrame:imageFrame,emulateSound:false});
+ nes.loadROM(binary); status('Emulador pronto. Iniciando o jogo...');stage('Iniciando NES...','Aguarde os primeiros quadros do jogo');
+ hasStarted=true;requestAnimationFrame(tick);
+ // If a core accepts the ROM but never produces a rendered frame, show the issue instead of a permanent black page.
+ setTimeout(()=>{if(hasStarted&&frames<4){status('O emulador carregou, mas não produziu imagem. Confira o navegador e a ROM.','bad');stage('Sem imagem do jogo','Veja o aviso abaixo ou teste outro navegador.');spinner.style.display='none'}},5000);
+ }catch(e){nes=null;fail(e.message||String(e));}
+}
+document.querySelector('#restart').addEventListener('click',()=>{if(!nes){location.reload();return}nes.reset();status('Jogo reiniciado.','good');});
+document.querySelector('#reload').addEventListener('click',()=>location.reload());
+document.querySelector('#share').addEventListener('click',async()=>{try{if(navigator.share)await navigator.share({title:document.title,url:location.href});else{await navigator.clipboard.writeText(location.href);status('✓ Link copiado para compartilhar.','good')}}catch(e){if(e.name!=='AbortError')status('Copie o endereço diretamente na barra do navegador.')}});
+start();
 </script>
-<script src="https://cdn.emulatorjs.org/stable/data/loader.js" onerror="document.getElementById('warning').textContent='O emulador não carregou. Verifique a internet e tente novamente.';"></script>
 </body>
 </html>
