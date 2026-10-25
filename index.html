@@ -48,13 +48,13 @@ button:focus-visible{outline:3px solid #f2cb61;outline-offset:4px}
 .system{height:calc(var(--pad-size)*3);align-self:stretch;display:flex;align-items:flex-end;justify-content:center;gap:clamp(6px,.9vw,14px);padding-bottom:clamp(10px,1.2vmin,22px)}
 .system-key{width:clamp(34px,6vw,58px);min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:9px;touch-action:none}
 .system-key button{width:100%;height:17px;background:linear-gradient(#414143,#151618);border:2px solid #5b5c5a;border-radius:50px;box-shadow:inset 0 2px 3px #090909b0,0 2px 0 #e4e3de;touch-action:none}
-.system-key button.pressed{background:linear-gradient(#171718,#434347);transform:translateY(1px)}
+.system-key button.pressed{transform:none}
 .system-key label{color:#6d2d3c;font-family:Arial, sans-serif;font-size:clamp(8px,1vw,11px);font-weight:800;letter-spacing:-.2px;white-space:nowrap;pointer-events:none}
 .action-pad{position:relative;height:calc(var(--pad-size)*3);width:min(100%,200px);display:flex;align-items:center;justify-content:center;gap:clamp(12px,2vw,26px);padding-top:22px}
 .action-well{display:grid;place-items:center;padding:5px;background:#888a89;border-radius:100%;box-shadow:inset 0 2px 4px #0006,0 1px 0 #fff6}
 .action-button{width:var(--action-size);height:var(--action-size);padding:0;border-radius:50%;border:2px solid #8b0a2c;background:radial-gradient(circle at 28% 21%,#ea4560 0%,var(--red) 42%,#830d2a 93%);box-shadow:inset 0 2px 2px #ff799664,inset 0 -3px 4px #5d061b,0 4px 2px #0005;color:#ffe8ea;font-size:clamp(15px,3.5vw,23px);font-weight:900;touch-action:none}
 /* Ajuste de desempenho: mantém o feedback físico sem filtro gráfico extra. */
-.action-button.pressed,.action-button:active{transform:translateY(3px);box-shadow:inset 0 3px 6px #510716,0 1px 1px #0005}
+.action-button.pressed,.action-button:active{transform:none;filter:none;box-shadow:inset 0 2px 2px #ff799664,inset 0 -3px 4px #5d061b,0 4px 2px #0005}
 .action-well:first-child{transform:translateY(11px)}.action-well:last-child{transform:translateY(-10px)}
 @media(orientation:portrait) and (max-width:650px){#console{grid-template-rows:minmax(0,1fr) auto}.controller{border-radius:19px 19px 0 0;border-bottom:0;width:100%;min-height:clamp(190px,31dvh,320px);display:flex;align-items:center;justify-content:center}.controller-inner{width:100%}.display-area{padding:5px 5px 10px}}
 @media(orientation:landscape) and (max-height:570px){:root{--pad-size:clamp(35px,9vh,49px);--action-size:clamp(43px,11vh,63px)}#console{grid-template-columns:minmax(0,1fr) minmax(290px,43%);grid-template-rows:1fr}.display-area{padding:5px}.controller{width:100%;height:100%;margin:0;display:flex;align-items:center;justify-content:center;border-radius:18px 0 0 18px;border-top-width:5px;padding:9px;min-width:0}.controller-inner{width:100%;grid-template-columns:minmax(0,1fr) minmax(56px,.55fr) minmax(0,1fr);gap:3px}.system-key{gap:7px}.system-key button{height:14px}.system-key label{font-size:8px}.action-pad{gap:4px}.action-well{padding:3px}}
@@ -110,10 +110,10 @@ function keyState(name,source,down){
  let holders=pressed.get(name);
  if(!holders){holders=new Set();pressed.set(name,holders)}
  const was=holders.size>0;
- if(down)holders.add(source);else holders.delete(source);
+ if(down){if(holders.has(source))return;holders.add(source)}else{if(!holders.has(source))return;holders.delete(source)}
  const active=holders.size>0;
  if(was!==active)sendInput(name,active);
- for(const el of buttonElements[name])el.classList.toggle('pressed',active);
+ 
 }
 function unlockAudio(){
  const emulator=ejs();const audio=emulator?.Module?.AL?.currentCtx;
@@ -134,16 +134,16 @@ function dpadMove(ev,source){
  const next={UP:y<-.20,DOWN:y>.20,LEFT:x<-.20,RIGHT:x>.20};
  if(Math.abs(x)<.14&&Math.abs(y)<.14)Object.keys(next).forEach(k=>next[k]=false);
  for(const name of Object.keys(next))keyState(name,source,next[name]);
- pad.classList.toggle('held',Object.values(next).some(Boolean));
+
 }
 const padPointers=new Set();
-pad.addEventListener('pointerdown',ev=>{ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();const source='dpad:'+ev.pointerId;padPointers.add(source);try{pad.setPointerCapture(ev.pointerId)}catch{}dpadMove(ev,source)});
+pad.addEventListener('pointerdown',ev=>{ev.preventDefault();unlockAudio();const source='dpad:'+ev.pointerId;padPointers.add(source);try{pad.setPointerCapture(ev.pointerId)}catch{}dpadMove(ev,source)});
 pad.addEventListener('pointermove',ev=>{const source='dpad:'+ev.pointerId;if(padPointers.has(source)){ev.preventDefault();dpadMove(ev,source)}});
-function releasePad(ev){const source='dpad:'+ev.pointerId;if(!padPointers.has(source))return;padPointers.delete(source);for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);if(!padPointers.size)pad.classList.remove('held')}
+function releasePad(ev){const source='dpad:'+ev.pointerId;if(!padPointers.has(source))return;padPointers.delete(source);for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);}
 for(const event of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(event,releasePad);
 for(const el of document.querySelectorAll('button[data-btn]:not(.dir)')){
  const name=el.dataset.btn;
- el.addEventListener('pointerdown',ev=>{ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();try{el.setPointerCapture(ev.pointerId)}catch{}keyState(name,'pointer:'+ev.pointerId,true)});
+ el.addEventListener('pointerdown',ev=>{ev.preventDefault();unlockAudio();try{el.setPointerCapture(ev.pointerId)}catch{}keyState(name,'pointer:'+ev.pointerId,true)});
  for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,ev=>keyState(name,'pointer:'+ev.pointerId,false));
  el.addEventListener('contextmenu',ev=>ev.preventDefault());
 }
@@ -191,7 +191,7 @@ async function boot(){
   window.EJS_gameUrl=url;window.EJS_gameName=jogo.nome;
   window.EJS_pathtodata='https://cdn.emulatorjs.org/stable/data/';
   window.EJS_startOnLoaded=true;window.EJS_color='#cc2246';window.EJS_volume=0.85;
-  window.EJS_defaultOptions={shader:'disabled',rewindEnabled:'disabled',fastForward:'disabled',fps:'hide',vsync:params.get('sincronia')==='off'?'disabled':'enabled'};
+  window.EJS_defaultOptions={shader:'disabled',rewindEnabled:'disabled',fastForward:'disabled',fps:'hide',vsync:params.get('sincronia')==='on'?'enabled':'disabled'};
   window.EJS_controlScheme='nes';
   window.EJS_onGameStart=()=>{showLoaded();unlockAudio();console.info('[Retro NFC] Núcleo:',motor,'| Sincronização:',window.EJS_defaultOptions.vsync)};
   window.EJS_VirtualGamepadSettings={};
