@@ -1,129 +1,82 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#07080b">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icon-192.png">
-  <title>NES</title>
-  <style>
-    :root{color-scheme:dark;--case:#bdbdb8;--case-edge:#e6e5df;--pad:#222427;--red:#bb1739;--pad-size:clamp(38px,11.3vw,55px);--action-size:clamp(49px,14.5vw,66px)}
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#07080b}
-    body{font-family:Arial,Helvetica,sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
-    button{font-family:inherit;cursor:pointer}
-    button:focus-visible{outline:3px solid #f2cb61;outline-offset:4px}
-    #console{width:100vw;height:100vh;height:100dvh;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;background:radial-gradient(ellipse at center,#191a1f 0%,#050607 80%)}
-    .display-area{min-height:0;display:flex;align-items:center;justify-content:center;padding:clamp(4px,1.2vmin,14px);overflow:hidden;touch-action:manipulation}
-    .screen-frame{position:relative;width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;border-radius:clamp(3px,1vmin,12px);box-shadow:0 0 0 2px #1f2023,0 8px 38px #000b}
-    #game{position:relative;width:100%;height:100%;min-height:0;background:#000;overflow:hidden}
-    .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;pointer-events:none}
-    .loading[hidden]{display:none!important}
-    .loader{width:29px;height:29px;border:3px solid #32343a;border-top-color:#a0a0a0;border-radius:100%;animation:turn .9s linear infinite}
-    @keyframes turn{to{transform:rotate(360deg)}}
-    .error{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:18px;background:#090a0b;color:#f9eded;gap:12px;pointer-events:auto}
-    .error[hidden]{display:none!important}
-    .error span{font-size:14px;line-height:1.5;max-width:340px}
-    .retry{margin:0 auto;border:1px solid #777;border-radius:8px;background:#333;color:white;padding:10px 16px;font-size:13px}
-    .controller{position:relative;width:min(100%,840px);margin:0 auto;padding:clamp(15px,2.6vmin,24px) clamp(10px,2.5vmin,24px);padding-bottom:max(clamp(15px,2.6vmin,24px),env(safe-area-inset-bottom));background:linear-gradient(165deg,#d8d8d2 0%,var(--case) 58%,#949590 100%);border:5px solid #a4a5a0;border-top-color:var(--case-edge);border-left-color:var(--case-edge);border-radius:19px 19px 25px 25px;box-shadow:inset 0 3px 5px #ffffff75,inset 0 -5px 6px #0002,0 9px 24px #0009;touch-action:none}
-    .controller::before{content:'';position:absolute;inset:9px 10px auto;height:4px;background:#a1a39e99;border-radius:5px;pointer-events:none}
-    .controller-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,.55fr) minmax(0,1fr);align-items:end;justify-items:center;gap:clamp(3px,2vw,25px);min-height:calc(var(--pad-size)*3 + 2px)}
-    .dpad{position:relative;width:calc(var(--pad-size)*3);height:calc(var(--pad-size)*3);touch-action:none;isolation:isolate;cursor:pointer;flex-shrink:0}
-    .dpad::before,.dpad::after{content:'';position:absolute;background:linear-gradient(160deg,#313336,#111214);border:2px solid #44464a;box-shadow:inset 0 1px 0 #717275a0,0 4px 3px #0005;z-index:-1}
-    .dpad::before{top:33.333%;left:0;width:100%;height:33.333%;border-radius:7px}
-    .dpad::after{left:33.333%;top:0;width:33.333%;height:100%;border-radius:7px}
-    .dpad-center{position:absolute;left:calc(50% - var(--pad-size)*.32);top:calc(50% - var(--pad-size)*.32);width:calc(var(--pad-size)*.64);height:calc(var(--pad-size)*.64);border:1px solid #333;box-shadow:inset 1px 1px 2px #0008,0 1px 0 #ffffff16;border-radius:50%;background:#242628;pointer-events:none}
-    .dir{position:absolute;width:var(--pad-size);height:var(--pad-size);background:transparent;color:#4c4e50;border:0;display:grid;place-items:center;padding:0;touch-action:none;outline-offset:0}
-    .dir::after{content:'';width:0;height:0;border:4px solid transparent;filter:drop-shadow(0 1px 0 #0008)}
-    .dir[data-btn="UP"]{left:33.333%;top:0}.dir[data-btn="UP"]::after{border-bottom-color:#595b5d;transform:translateY(-2px)}
-    .dir[data-btn="DOWN"]{left:33.333%;bottom:0}.dir[data-btn="DOWN"]::after{border-top-color:#595b5d;transform:translateY(2px)}
-    .dir[data-btn="LEFT"]{left:0;top:33.333%}.dir[data-btn="LEFT"]::after{border-right-color:#595b5d;transform:translateX(-2px)}
-    .dir[data-btn="RIGHT"]{right:0;top:33.333%}.dir[data-btn="RIGHT"]::after{border-left-color:#595b5d;transform:translateX(2px)}
-    .dpad.held::before,.dpad.held::after{filter:brightness(1.14)}
-    .system{height:calc(var(--pad-size)*3);align-self:stretch;display:flex;align-items:flex-end;justify-content:center;gap:clamp(6px,.9vw,14px);padding-bottom:clamp(10px,1.2vmin,22px)}
-    .system-key{width:clamp(34px,6vw,58px);min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:9px;touch-action:none}
-    .system-key button{width:100%;height:17px;background:linear-gradient(#414143,#151618);border:2px solid #5b5c5a;border-radius:50px;box-shadow:inset 0 2px 3px #090909b0,0 2px 0 #e4e3de;touch-action:none}
-    .system-key button.pressed{background:linear-gradient(#171718,#434347);transform:translateY(1px)}
-    .system-key label{color:#6d2d3c;font-family:Arial, sans-serif;font-size:clamp(8px,1vw,11px);font-weight:800;letter-spacing:-.2px;white-space:nowrap;pointer-events:none}
-    .action-pad{position:relative;height:calc(var(--pad-size)*3);width:min(100%,200px);display:flex;align-items:center;justify-content:center;gap:clamp(12px,2vw,26px);padding-top:22px}
-    .action-well{display:grid;place-items:center;padding:5px;background:#888a89;border-radius:100%;box-shadow:inset 0 2px 4px #0006,0 1px 0 #fff6}
-    .action-button{width:var(--action-size);height:var(--action-size);padding:0;border-radius:50%;border:2px solid #8b0a2c;background:radial-gradient(circle at 28% 21%,#ea4560 0%,var(--red) 42%,#830d2a 93%);box-shadow:inset 0 2px 2px #ff799664,inset 0 -3px 4px #5d061b,0 4px 2px #0005;color:#ffe8ea;font-size:clamp(15px,3.5vw,23px);font-weight:900;touch-action:none}
-    .action-button.pressed,.action-button:active{transform:translateY(3px);box-shadow:inset 0 3px 6px #510716,0 1px 1px #0005;filter:brightness(.95)}
-    .action-well:first-child{transform:translateY(11px)}.action-well:last-child{transform:translateY(-10px)}
-    @media(orientation:portrait) and (max-width:650px){
-      #console{grid-template-rows:minmax(0,1fr) auto}
-      .controller{border-radius:19px 19px 0 0;border-bottom:0;width:100%;min-height:clamp(190px,31dvh,320px);display:flex;align-items:center;justify-content:center}
-      .controller-inner{width:100%}
-      .display-area{padding:5px 5px 10px}
-    }
-    @media(orientation:landscape) and (max-height:570px){
-      :root{--pad-size:clamp(35px,9vh,49px);--action-size:clamp(43px,11vh,63px)}
-      #console{grid-template-columns:minmax(0,1fr) minmax(290px,43%);grid-template-rows:1fr}
-      .display-area{padding:5px}
-      .controller{width:100%;height:100%;margin:0;display:flex;align-items:center;justify-content:center;border-radius:18px 0 0 18px;border-top-width:5px;padding:9px;min-width:0}
-      .controller-inner{width:100%;grid-template-columns:minmax(0,1fr) minmax(56px,.55fr) minmax(0,1fr);gap:3px}
-      .system-key{gap:7px}.system-key button{height:14px}.system-key label{font-size:8px}
-      .action-pad{gap:4px}.action-well{padding:3px}
-    }
-    @media(orientation:landscape) and (min-height:571px){
-      #console{grid-template-rows:minmax(0,1fr) auto}
-      .controller{height:clamp(185px,30dvh,246px)}
-      .controller-inner{height:100%}
-    }
-    @media(max-width:345px){
-      :root{--pad-size:36px;--action-size:46px}
-      .controller{padding-left:7px;padding-right:7px}.controller-inner{gap:2px}.system-key{width:33px}.system-key button{width:34px}
-      .action-pad{gap:2px}
-    }
-    @media(prefers-reduced-motion:reduce){.loader{animation:none}}
-  
-    /* Nestopia runs inside EmulatorJS. Only the libretro canvas is visible. */
-    #game.ejs_parent {width:100%;height:100%;min-width:0;min-height:0;outline:none}
-    #game .ejs_canvas_parent, #game .ejs_canvas {width:100%!important;height:100%!important}
-    #game .ejs_canvas {object-fit:contain!important;object-position:center center!important;image-rendering:pixelated;top:0;left:0}
-    #game .ejs_virtualGamepad_parent, #game .ejs_menu_bar,
-    #game .ejs_settings_parent, #game .ejs_start_button,
-    #game .ejs_popup_container, #game .ejs_context_menu {display:none!important}
-    .loading{z-index:15}
-    .error{z-index:20}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07080b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>NES</title>
+<style>
+:root{color-scheme:dark;--case:#bdbdb8;--case-edge:#e6e5df;--pad:#222427;--red:#bb1739;--pad-size:clamp(38px,11.3vw,55px);--action-size:clamp(49px,14.5vw,66px)}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#07080b}
+body{font-family:Arial,Helvetica,sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid #f2cb61;outline-offset:4px}
+#console{width:100vw;height:100vh;height:100dvh;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;background:radial-gradient(ellipse at center,#191a1f 0%,#050607 80%)}
+.display-area{min-height:0;display:flex;align-items:center;justify-content:center;padding:clamp(4px,1.2vmin,14px);overflow:hidden;touch-action:manipulation}
+.screen-frame{position:relative;width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;border-radius:clamp(3px,1vmin,12px);box-shadow:0 0 0 2px #1f2023,0 8px 38px #000b}
+#game{position:relative;width:100%;height:100%;min-height:0;background:#000;overflow:hidden}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;pointer-events:none}
+.loading[hidden]{display:none!important}
+.loader{width:29px;height:29px;border:3px solid #32343a;border-top-color:#a0a0a0;border-radius:100%;animation:turn .9s linear infinite}
+@keyframes turn{to{transform:rotate(360deg)}}
+.error{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:18px;background:#090a0b;color:#f9eded;gap:12px;pointer-events:auto}
+.error[hidden]{display:none!important}
+.error span{font-size:14px;line-height:1.5;max-width:340px}
+.retry{margin:0 auto;border:1px solid #777;border-radius:8px;background:#333;color:white;padding:10px 16px;font-size:13px}
+.controller{position:relative;width:min(100%,840px);margin:0 auto;padding:clamp(15px,2.6vmin,24px) clamp(10px,2.5vmin,24px);padding-bottom:max(clamp(15px,2.6vmin,24px),env(safe-area-inset-bottom));background:linear-gradient(165deg,#d8d8d2 0%,var(--case) 58%,#949590 100%);border:5px solid #a4a5a0;border-top-color:var(--case-edge);border-left-color:var(--case-edge);border-radius:19px 19px 25px 25px;box-shadow:inset 0 3px 5px #ffffff75,inset 0 -5px 6px #0002,0 9px 24px #0009;touch-action:none}
+.controller::before{content:'';position:absolute;inset:9px 10px auto;height:4px;background:#a1a39e99;border-radius:5px;pointer-events:none}
+.controller-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,.55fr) minmax(0,1fr);align-items:end;justify-items:center;gap:clamp(3px,2vw,25px);min-height:calc(var(--pad-size)*3 + 2px)}
+.dpad{position:relative;width:calc(var(--pad-size)*3);height:calc(var(--pad-size)*3);touch-action:none;isolation:isolate;cursor:pointer;flex-shrink:0}
+.dpad::before,.dpad::after{content:'';position:absolute;background:linear-gradient(160deg,#313336,#111214);border:2px solid #44464a;box-shadow:inset 0 1px 0 #717275a0,0 4px 3px #0005;z-index:-1}
+.dpad::before{top:33.333%;left:0;width:100%;height:33.333%;border-radius:7px}
+.dpad::after{left:33.333%;top:0;width:33.333%;height:100%;border-radius:7px}
+.dpad-center{position:absolute;left:calc(50% - var(--pad-size)*.32);top:calc(50% - var(--pad-size)*.32);width:calc(var(--pad-size)*.64);height:calc(var(--pad-size)*.64);border:1px solid #333;box-shadow:inset 1px 1px 2px #0008,0 1px 0 #ffffff16;border-radius:50%;background:#242628;pointer-events:none}
+.dir{position:absolute;width:var(--pad-size);height:var(--pad-size);background:transparent;color:#4c4e50;border:0;display:grid;place-items:center;padding:0;touch-action:none;outline-offset:0}
+.dir::after{content:'';width:0;height:0;border:4px solid transparent;filter:drop-shadow(0 1px 0 #0008)}
+.dir[data-btn="UP"]{left:33.333%;top:0}.dir[data-btn="UP"]::after{border-bottom-color:#595b5d;transform:translateY(-2px)}
+.dir[data-btn="DOWN"]{left:33.333%;bottom:0}.dir[data-btn="DOWN"]::after{border-top-color:#595b5d;transform:translateY(2px)}
+.dir[data-btn="LEFT"]{left:0;top:33.333%}.dir[data-btn="LEFT"]::after{border-right-color:#595b5d;transform:translateX(-2px)}
+.dir[data-btn="RIGHT"]{right:0;top:33.333%}.dir[data-btn="RIGHT"]::after{border-left-color:#595b5d;transform:translateX(2px)}
+/* Ajuste de desempenho: sem filtro de brilho ao pressionar o direcional. */
+.dpad.held::before,.dpad.held::after{filter:none}
+.system{height:calc(var(--pad-size)*3);align-self:stretch;display:flex;align-items:flex-end;justify-content:center;gap:clamp(6px,.9vw,14px);padding-bottom:clamp(10px,1.2vmin,22px)}
+.system-key{width:clamp(34px,6vw,58px);min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:9px;touch-action:none}
+.system-key button{width:100%;height:17px;background:linear-gradient(#414143,#151618);border:2px solid #5b5c5a;border-radius:50px;box-shadow:inset 0 2px 3px #090909b0,0 2px 0 #e4e3de;touch-action:none}
+.system-key button.pressed{background:linear-gradient(#171718,#434347);transform:translateY(1px)}
+.system-key label{color:#6d2d3c;font-family:Arial, sans-serif;font-size:clamp(8px,1vw,11px);font-weight:800;letter-spacing:-.2px;white-space:nowrap;pointer-events:none}
+.action-pad{position:relative;height:calc(var(--pad-size)*3);width:min(100%,200px);display:flex;align-items:center;justify-content:center;gap:clamp(12px,2vw,26px);padding-top:22px}
+.action-well{display:grid;place-items:center;padding:5px;background:#888a89;border-radius:100%;box-shadow:inset 0 2px 4px #0006,0 1px 0 #fff6}
+.action-button{width:var(--action-size);height:var(--action-size);padding:0;border-radius:50%;border:2px solid #8b0a2c;background:radial-gradient(circle at 28% 21%,#ea4560 0%,var(--red) 42%,#830d2a 93%);box-shadow:inset 0 2px 2px #ff799664,inset 0 -3px 4px #5d061b,0 4px 2px #0005;color:#ffe8ea;font-size:clamp(15px,3.5vw,23px);font-weight:900;touch-action:none}
+/* Ajuste de desempenho: mantém o feedback físico sem filtro gráfico extra. */
+.action-button.pressed,.action-button:active{transform:translateY(3px);box-shadow:inset 0 3px 6px #510716,0 1px 1px #0005}
+.action-well:first-child{transform:translateY(11px)}.action-well:last-child{transform:translateY(-10px)}
+@media(orientation:portrait) and (max-width:650px){#console{grid-template-rows:minmax(0,1fr) auto}.controller{border-radius:19px 19px 0 0;border-bottom:0;width:100%;min-height:clamp(190px,31dvh,320px);display:flex;align-items:center;justify-content:center}.controller-inner{width:100%}.display-area{padding:5px 5px 10px}}
+@media(orientation:landscape) and (max-height:570px){:root{--pad-size:clamp(35px,9vh,49px);--action-size:clamp(43px,11vh,63px)}#console{grid-template-columns:minmax(0,1fr) minmax(290px,43%);grid-template-rows:1fr}.display-area{padding:5px}.controller{width:100%;height:100%;margin:0;display:flex;align-items:center;justify-content:center;border-radius:18px 0 0 18px;border-top-width:5px;padding:9px;min-width:0}.controller-inner{width:100%;grid-template-columns:minmax(0,1fr) minmax(56px,.55fr) minmax(0,1fr);gap:3px}.system-key{gap:7px}.system-key button{height:14px}.system-key label{font-size:8px}.action-pad{gap:4px}.action-well{padding:3px}}
+@media(orientation:landscape) and (min-height:571px){#console{grid-template-rows:minmax(0,1fr) auto}.controller{height:clamp(185px,30dvh,246px)}.controller-inner{height:100%}}
+@media(max-width:345px){:root{--pad-size:36px;--action-size:46px}.controller{padding-left:7px;padding-right:7px}.controller-inner{gap:2px}.system-key{width:33px}.system-key button{width:34px}.action-pad{gap:2px}}
+@media(prefers-reduced-motion:reduce){.loader{animation:none}}
+/* Nestopia inside EmulatorJS: show only the game canvas. */
+#game.ejs_parent{width:100%;height:100%;min-width:0;min-height:0;outline:none}
+#game .ejs_canvas_parent,#game .ejs_canvas{width:100%!important;height:100%!important}
+#game .ejs_canvas{object-fit:contain!important;object-position:center center!important;image-rendering:pixelated;top:0;left:0}
+#game .ejs_virtualGamepad_parent,#game .ejs_menu_bar,#game .ejs_settings_parent,#game .ejs_start_button,#game .ejs_popup_container,#game .ejs_context_menu{display:none!important}
+.loading{z-index:15}.error{z-index:20}
 </style>
 </head>
 <body>
 <main id="console" aria-label="Emulador de NES">
-  <section class="display-area" aria-label="Tela do jogo">
-    <div class="screen-frame" id="screenFrame">
-      <div id="game" aria-label="Jogo NES em execução"></div>
-      <div class="loading" id="loading" role="status" aria-label="Carregando jogo"><div class="loader"></div></div>
-      <div class="error" id="error" role="alert" hidden><span id="errorText">Não foi possível carregar o jogo.</span><button class="retry" id="retry" type="button">Tentar novamente</button></div>
-    </div>
-  </section>
-  <section class="controller" aria-label="Controle NES">
-    <div class="controller-inner">
-      <div class="dpad" id="dpad" aria-label="Direcional">
-        <button type="button" class="dir" data-btn="UP" aria-label="Cima"></button>
-        <button type="button" class="dir" data-btn="LEFT" aria-label="Esquerda"></button>
-        <button type="button" class="dir" data-btn="RIGHT" aria-label="Direita"></button>
-        <button type="button" class="dir" data-btn="DOWN" aria-label="Baixo"></button>
-        <div class="dpad-center" aria-hidden="true"></div>
-      </div>
-      <div class="system">
-        <div class="system-key"><button type="button" data-btn="SELECT" aria-label="Select"></button><label>SELECT</label></div>
-        <div class="system-key"><button type="button" data-btn="START" aria-label="Start"></button><label>START</label></div>
-      </div>
-      <div class="action-pad">
-        <div class="action-well"><button type="button" class="action-button" data-btn="B" aria-label="Botão B">B</button></div>
-        <div class="action-well"><button type="button" class="action-button" data-btn="A" aria-label="Botão A">A</button></div>
-      </div>
-    </div>
-  </section>
+<section class="display-area" aria-label="Tela do jogo"><div class="screen-frame" id="screenFrame"><div id="game" aria-label="Jogo NES em execução"></div><div class="loading" id="loading" role="status" aria-label="Carregando jogo"><div class="loader"></div></div><div class="error" id="error" role="alert" hidden><span id="errorText">Não foi possível carregar o jogo.</span><button class="retry" id="retry" type="button">Tentar novamente</button></div></div></section>
+<section class="controller" aria-label="Controle NES"><div class="controller-inner"><div class="dpad" id="dpad" aria-label="Direcional"><button type="button" class="dir" data-btn="UP" aria-label="Cima"></button><button type="button" class="dir" data-btn="LEFT" aria-label="Esquerda"></button><button type="button" class="dir" data-btn="RIGHT" aria-label="Direita"></button><button type="button" class="dir" data-btn="DOWN" aria-label="Baixo"></button><div class="dpad-center" aria-hidden="true"></div></div><div class="system"><div class="system-key"><button type="button" data-btn="SELECT" aria-label="Select"></button><label>SELECT</label></div><div class="system-key"><button type="button" data-btn="START" aria-label="Start"></button><label>START</label></div></div><div class="action-pad"><div class="action-well"><button type="button" class="action-button" data-btn="B" aria-label="Botão B">B</button></div><div class="action-well"><button type="button" class="action-button" data-btn="A" aria-label="Botão A">A</button></div></div></div></section>
 </main>
 <script>
 'use strict';
-/* Retro NFC v7 - Núcleos NES selecionáveis, menos trabalho em segundo plano. */
+/* Retro NFC v7: controles virtuais leves; núcleos NES selecionáveis. */
 const loading=document.querySelector('#loading');
 const error=document.querySelector('#error');
 const errorText=document.querySelector('#errorText');
@@ -134,201 +87,117 @@ const pressed=new Map();
 const buttonElements=Object.fromEntries(controllerButtons.map(name=>[name,[...document.querySelectorAll('[data-btn="'+name+'"]')]]));
 let gameReady=false,hasFailed=false,waitingTimer=null;
 function showError(message){
-  if(hasFailed)return;
-  hasFailed=true;clearTimeout(waitingTimer);
-  loading.hidden=true;error.hidden=false;errorText.textContent=message;
-  console.error('[Retro NFC / Nestopia]',message);
+ if(hasFailed)return;
+ hasFailed=true;clearTimeout(waitingTimer);
+ loading.hidden=true;error.hidden=false;errorText.textContent=message;
+ console.error('[Retro NFC / Nestopia]',message);
 }
 function showLoaded(){
-  if(hasFailed)return;
-  gameReady=true;clearTimeout(waitingTimer);loading.hidden=true;error.hidden=true;
-  // Reenvia os botões que estiverem pressionados durante o carregamento.
-  for(const name of controllerButtons){if(pressed.get(name)?.size)sendInput(name,true)}
+ if(hasFailed)return;
+ gameReady=true;clearTimeout(waitingTimer);loading.hidden=true;error.hidden=true;
+ for(const name of controllerButtons){if(pressed.get(name)?.size)sendInput(name,true)}
 }
 function ejs(){return window.EJS_emulator||null}
 function sendInput(name,down){
-  if(!gameReady)return;
-  const manager=ejs()?.gameManager;
-  if(!manager || typeof manager.simulateInput!=='function')return;
-  const ix=inputIndex[name];
-  if(ix===undefined)return;
-  try{manager.simulateInput(0,ix,down?1:0)}catch(err){console.warn('[NES] Falha no controle',err)}
+ if(!gameReady)return;
+ const manager=ejs()?.gameManager;
+ if(!manager||typeof manager.simulateInput!=='function')return;
+ const ix=inputIndex[name];if(ix===undefined)return;
+ try{manager.simulateInput(0,ix,down?1:0)}catch(err){console.warn('[NES] Falha no controle',err)}
 }
 function keyState(name,source,down){
-  if(!controllerButtons.includes(name))return;
-  let holders=pressed.get(name);
-  if(!holders){holders=new Set();pressed.set(name,holders)}
-  const was=holders.size>0;
-  if(down)holders.add(source);else holders.delete(source);
-  const active=holders.size>0;
-  if(was!==active)sendInput(name,active);
-  for(const el of buttonElements[name])el.classList.toggle('pressed',active);
+ if(!controllerButtons.includes(name))return;
+ let holders=pressed.get(name);
+ if(!holders){holders=new Set();pressed.set(name,holders)}
+ const was=holders.size>0;
+ if(down)holders.add(source);else holders.delete(source);
+ const active=holders.size>0;
+ if(was!==active)sendInput(name,active);
+ for(const el of buttonElements[name])el.classList.toggle('pressed',active);
 }
 function unlockAudio(){
-  const emulator=ejs();
-  const audio=emulator?.Module?.AL?.currentCtx;
-  if(audio?.state==='suspended')audio.resume().catch(()=>{});
-  // A própria libretro também processa o áudio ao receber o primeiro toque.
+ const emulator=ejs();const audio=emulator?.Module?.AL?.currentCtx;
+ if(audio?.state==='suspended')audio.resume().catch(()=>{});
 }
 function immersive(){
-  if(document.fullscreenElement || window.matchMedia('(display-mode: fullscreen)').matches || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone)return;
-  if(!document.documentElement.requestFullscreen)return;
-  try{const p=document.documentElement.requestFullscreen({navigationUI:'hide'});if(p?.catch)p.catch(()=>{})}catch{}
+ if(document.fullscreenElement||window.matchMedia('(display-mode: fullscreen)').matches||window.matchMedia('(display-mode: standalone)').matches||navigator.standalone)return;
+ if(!document.documentElement.requestFullscreen)return;
+ try{const p=document.documentElement.requestFullscreen({navigationUI:'hide'});if(p?.catch)p.catch(()=>{})}catch{}
 }
-// Keyboard input uses our controls, not a second set of EmulatorJS shortcuts.
 const keymap={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',KeyX:'A',KeyZ:'B',Enter:'START',ShiftRight:'SELECT',KeyK:'B',KeyL:'A'};
-document.addEventListener('keydown',e=>{
-  const name=keymap[e.code];if(!name)return;
-  e.preventDefault();e.stopImmediatePropagation();unlockAudio();keyState(name,'keyboard',true);
-},true);
-document.addEventListener('keyup',e=>{
-  const name=keymap[e.code];if(!name)return;
-  e.preventDefault();e.stopImmediatePropagation();keyState(name,'keyboard',false);
-},true);
-window.addEventListener('blur',()=>{
-  for(const name of controllerButtons){
-    for(const source of [...(pressed.get(name)||[])])keyState(name,source,false);
-  }
-});
-// Direcional: aceita diagonal e mudar de direção deslizando o dedo.
+document.addEventListener('keydown',e=>{const name=keymap[e.code];if(!name)return;e.preventDefault();e.stopImmediatePropagation();unlockAudio();keyState(name,'keyboard',true)},true);
+document.addEventListener('keyup',e=>{const name=keymap[e.code];if(!name)return;e.preventDefault();e.stopImmediatePropagation();keyState(name,'keyboard',false)},true);
+window.addEventListener('blur',()=>{for(const name of controllerButtons){for(const source of [...(pressed.get(name)||[])])keyState(name,source,false)}});
 function dpadMove(ev,source){
-  const box=pad.getBoundingClientRect();
-  const x=(ev.clientX-box.left)/box.width-.5, y=(ev.clientY-box.top)/box.height-.5;
-  const next={UP:y<-.20,DOWN:y>.20,LEFT:x<-.20,RIGHT:x>.20};
-  if(Math.abs(x)<.14&&Math.abs(y)<.14)Object.keys(next).forEach(k=>next[k]=false);
-  for(const name of Object.keys(next))keyState(name,source,next[name]);
-  pad.classList.toggle('held',Object.values(next).some(Boolean));
+ const box=pad.getBoundingClientRect();
+ const x=(ev.clientX-box.left)/box.width-.5,y=(ev.clientY-box.top)/box.height-.5;
+ const next={UP:y<-.20,DOWN:y>.20,LEFT:x<-.20,RIGHT:x>.20};
+ if(Math.abs(x)<.14&&Math.abs(y)<.14)Object.keys(next).forEach(k=>next[k]=false);
+ for(const name of Object.keys(next))keyState(name,source,next[name]);
+ pad.classList.toggle('held',Object.values(next).some(Boolean));
 }
 const padPointers=new Set();
-pad.addEventListener('pointerdown',ev=>{
-  ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();
-  const source='dpad:'+ev.pointerId;padPointers.add(source);
-  try{pad.setPointerCapture(ev.pointerId)}catch{}
-  dpadMove(ev,source);
-});
-pad.addEventListener('pointermove',ev=>{
-  const source='dpad:'+ev.pointerId;
-  if(padPointers.has(source)){ev.preventDefault();dpadMove(ev,source)}
-});
-function releasePad(ev){
-  const source='dpad:'+ev.pointerId;
-  if(!padPointers.has(source))return;
-  padPointers.delete(source);
-  for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);
-  if(!padPointers.size)pad.classList.remove('held');
-}
+pad.addEventListener('pointerdown',ev=>{ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();const source='dpad:'+ev.pointerId;padPointers.add(source);try{pad.setPointerCapture(ev.pointerId)}catch{}dpadMove(ev,source)});
+pad.addEventListener('pointermove',ev=>{const source='dpad:'+ev.pointerId;if(padPointers.has(source)){ev.preventDefault();dpadMove(ev,source)}});
+function releasePad(ev){const source='dpad:'+ev.pointerId;if(!padPointers.has(source))return;padPointers.delete(source);for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);if(!padPointers.size)pad.classList.remove('held')}
 for(const event of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(event,releasePad);
 for(const el of document.querySelectorAll('button[data-btn]:not(.dir)')){
-  const name=el.dataset.btn;
-  el.addEventListener('pointerdown',ev=>{
-    ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();
-    try{el.setPointerCapture(ev.pointerId)}catch{}
-    keyState(name,'pointer:'+ev.pointerId,true);
-  });
-  for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,ev=>keyState(name,'pointer:'+ev.pointerId,false));
-  el.addEventListener('contextmenu',ev=>ev.preventDefault());
+ const name=el.dataset.btn;
+ el.addEventListener('pointerdown',ev=>{ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();try{el.setPointerCapture(ev.pointerId)}catch{}keyState(name,'pointer:'+ev.pointerId,true)});
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,ev=>keyState(name,'pointer:'+ev.pointerId,false));
+ el.addEventListener('contextmenu',ev=>ev.preventDefault());
 }
-// Evita executar uma segunda rotina a 60 FPS quando NÃO há controle físico.
-// O touch e o teclado continuam sendo processados imediatamente.
-let gamepadStates={}, gamepadFrame=0;
-function getPhysicalGamepad(){
-  return navigator.getGamepads ? Array.from(navigator.getGamepads()).find(gp=>gp?.connected) : null;
-}
-function releaseGamepad(){
-  for(const k of controllerButtons)if(gamepadStates[k])keyState(k,'gamepad',false);
-  gamepadStates={};
-}
+let gamepadStates={},gamepadFrame=0;
+function getPhysicalGamepad(){return navigator.getGamepads?Array.from(navigator.getGamepads()).find(gp=>gp?.connected):null}
+function releaseGamepad(){for(const k of controllerButtons)if(gamepadStates[k])keyState(k,'gamepad',false);gamepadStates={}}
 function pollGamepad(){
-  gamepadFrame=0;
-  if(document.hidden)return;
-  const gp=getPhysicalGamepad();
-  if(!gp){releaseGamepad();return;}
-  const b=i=>Boolean(gp.buttons[i]?.pressed),x=gp.axes[0]||0,y=gp.axes[1]||0;
-  const next={UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)};
-  for(const k of controllerButtons)if(Boolean(next[k])!==Boolean(gamepadStates[k]))keyState(k,'gamepad',Boolean(next[k]));
-  gamepadStates=next;
-  gamepadFrame=requestAnimationFrame(pollGamepad);
+ gamepadFrame=0;if(document.hidden)return;
+ const gp=getPhysicalGamepad();if(!gp){releaseGamepad();return}
+ const b=i=>Boolean(gp.buttons[i]?.pressed),x=gp.axes[0]||0,y=gp.axes[1]||0;
+ const next={UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)};
+ for(const k of controllerButtons)if(Boolean(next[k])!==Boolean(gamepadStates[k]))keyState(k,'gamepad',Boolean(next[k]));
+ gamepadStates=next;gamepadFrame=requestAnimationFrame(pollGamepad);
 }
-function scheduleGamepad(){
-  if(!gamepadFrame&&!document.hidden&&getPhysicalGamepad())gamepadFrame=requestAnimationFrame(pollGamepad);
-}
+function scheduleGamepad(){if(!gamepadFrame&&!document.hidden&&getPhysicalGamepad())gamepadFrame=requestAnimationFrame(pollGamepad)}
 window.addEventListener('gamepadconnected',scheduleGamepad);
 window.addEventListener('gamepaddisconnected',()=>{releaseGamepad();scheduleGamepad()});
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){cancelAnimationFrame(gamepadFrame);gamepadFrame=0;releaseGamepad();}
-  else scheduleGamepad();
-});
-// Alguns navegadores não avisam ao conectar o gamepad. Verificamos raramente,
-// em vez de verificar a cada frame durante todo o jogo.
-setInterval(scheduleGamepad,1500);
-scheduleGamepad();
-// Abre uma ROM diferente por ?jogo=001, ?jogo=002, ?jogo=nome-do-arquivo
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(gamepadFrame);gamepadFrame=0;releaseGamepad()}else scheduleGamepad()});
+setInterval(scheduleGamepad,1500);scheduleGamepad();
 async function escolherJogo(){
-  const id=new URLSearchParams(location.search).get('jogo')||'001';
-  if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?:\.nes)?$/.test(id))throw Error('Código de cartucho inválido.');
-  const resp=await fetch('./jogos/catalogo.json',{cache:'no-store'});
-  if(!resp.ok)throw Error('Não foi possível carregar jogos/catalogo.json.');
-  const catalogo=await resp.json();
-  if(!catalogo||typeof catalogo!=='object'||Array.isArray(catalogo))throw Error('Catálogo de jogos inválido.');
-  const ficha=Object.prototype.hasOwnProperty.call(catalogo,id)?catalogo[id]:null;
-  if(!ficha&&/^\d+$/.test(id))throw Error('Cartucho '+id+' não está cadastrado.');
-  const arquivo=ficha?.arquivo||(id.toLowerCase().endsWith('.nes')?id:id+'.nes');
-  if(typeof arquivo!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.nes$/i.test(arquivo))throw Error('Nome da ROM inválido.');
-  return {id,arquivo,nome:typeof ficha?.nome==='string'?ficha.nome:id};
+ const id=new URLSearchParams(location.search).get('jogo')||'001';
+ if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?:\.nes)?$/.test(id))throw Error('Código de cartucho inválido.');
+ const resp=await fetch('./jogos/catalogo.json',{cache:'no-store'});
+ if(!resp.ok)throw Error('Não foi possível carregar jogos/catalogo.json.');
+ const catalogo=await resp.json();
+ if(!catalogo||typeof catalogo!=='object'||Array.isArray(catalogo))throw Error('Catálogo de jogos inválido.');
+ const ficha=Object.prototype.hasOwnProperty.call(catalogo,id)?catalogo[id]:null;
+ if(!ficha&&/^\d+$/.test(id))throw Error('Cartucho '+id+' não está cadastrado.');
+ const arquivo=ficha?.arquivo||(id.toLowerCase().endsWith('.nes')?id:id+'.nes');
+ if(typeof arquivo!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.nes$/i.test(arquivo))throw Error('Nome da ROM inválido.');
+ return {id,arquivo,nome:typeof ficha?.nome==='string'?ficha.nome:id};
 }
-function loadScript(url){
-  return new Promise((resolve,reject)=>{
-    const el=document.createElement('script');el.src=url;el.async=true;
-    const timeout=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado ao carregar o emulador.'))},25000);
-    el.onload=()=>{clearTimeout(timeout);resolve()};
-    el.onerror=()=>{clearTimeout(timeout);reject(Error('Falha no download do EmulatorJS. Verifique a conexão.'))};
-    document.head.appendChild(el);
-  });
-}
+function loadScript(url){return new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=url;el.async=true;const timeout=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado ao carregar o emulador.'))},25000);el.onload=()=>{clearTimeout(timeout);resolve()};el.onerror=()=>{clearTimeout(timeout);reject(Error('Falha no download do EmulatorJS. Verifique a conexão.'))};document.head.appendChild(el)})}
 async function boot(){
-  try{
-    const jogo=await escolherJogo();
-    const params=new URLSearchParams(location.search);
-    // Compare desempenho com o mesmo jogo:
-    // ?jogo=SMB3 (Nestopia) ou ?jogo=SMB3&motor=fceumm (FCEUmm).
-    const motor=params.get('motor')==='fceumm'?'fceumm':'nestopia';
-    document.title=jogo.nome+' · NES';
-    const url=new URL('./jogos/'+jogo.arquivo,location.href).href;
-    const result=await fetch(url,{cache:'default'});
-    if(!result.ok)throw Error('ROM não encontrada: jogos/'+jogo.arquivo);
-    const data=new Uint8Array(await result.arrayBuffer());
-    if(data.length<16 || String.fromCharCode(...data.subarray(0,4))!=='NES\x1a')throw Error('A ROM não é um arquivo NES válido.');
-    // Nome da ROM sempre termina em .nes para o EmulatorJS reconhecer a extensão.
-    window.EJS_player='#game';
-    window.EJS_core=motor; // Ambos os núcleos usam os mesmos jogos e controles.
-    window.EJS_gameUrl=url;
-    window.EJS_gameName=jogo.nome;
-    window.EJS_pathtodata='https://cdn.emulatorjs.org/stable/data/';
-    window.EJS_startOnLoaded=true;
-    window.EJS_color='#cc2246';
-    window.EJS_volume=0.85;
-    // Perfil simples para evitar filtros gráficos e processamento de rewind.
-    // Mantém VSync para preservar a cadência; experimente desativá-lo com
-    // ?sincronia=off somente se as travadas persistirem.
-    window.EJS_defaultOptions={
-      shader:'disabled',
-      rewindEnabled:'disabled',
-      fastForward:'disabled',
-      fps:'hide',
-      vsync:params.get('sincronia')==='off'?'disabled':'enabled'
-    };
-    window.EJS_controlScheme='nes';
-    window.EJS_onGameStart=()=>{
-      showLoaded();unlockAudio();
-      console.info('[Retro NFC] Núcleo:',motor,'| Sincronização:',window.EJS_defaultOptions.vsync);
-    };
-    // Sem uma segunda interface de controles.
-    window.EJS_VirtualGamepadSettings={};
-    await loadScript('https://cdn.emulatorjs.org/stable/data/loader.js');
-    waitingTimer=setTimeout(()=>{
-      if(!gameReady)showError('O emulador NES não iniciou. Verifique a internet e toque em Tentar novamente.');
-    },55000);
-  }catch(err){showError(err.message||String(err))}
+ try{
+  const jogo=await escolherJogo();const params=new URLSearchParams(location.search);
+  const motor=params.get('motor')==='fceumm'?'fceumm':'nestopia';
+  document.title=jogo.nome+' · NES';
+  const url=new URL('./jogos/'+jogo.arquivo,location.href).href;
+  const result=await fetch(url,{cache:'default'});
+  if(!result.ok)throw Error('ROM não encontrada: jogos/'+jogo.arquivo);
+  const data=new Uint8Array(await result.arrayBuffer());
+  if(data.length<16||String.fromCharCode(...data.subarray(0,4))!=='NES\x1a')throw Error('A ROM não é um arquivo NES válido.');
+  window.EJS_player='#game';window.EJS_core=motor;
+  window.EJS_gameUrl=url;window.EJS_gameName=jogo.nome;
+  window.EJS_pathtodata='https://cdn.emulatorjs.org/stable/data/';
+  window.EJS_startOnLoaded=true;window.EJS_color='#cc2246';window.EJS_volume=0.85;
+  window.EJS_defaultOptions={shader:'disabled',rewindEnabled:'disabled',fastForward:'disabled',fps:'hide',vsync:params.get('sincronia')==='off'?'disabled':'enabled'};
+  window.EJS_controlScheme='nes';
+  window.EJS_onGameStart=()=>{showLoaded();unlockAudio();console.info('[Retro NFC] Núcleo:',motor,'| Sincronização:',window.EJS_defaultOptions.vsync)};
+  window.EJS_VirtualGamepadSettings={};
+  await loadScript('https://cdn.emulatorjs.org/stable/data/loader.js');
+  waitingTimer=setTimeout(()=>{if(!gameReady)showError('O emulador NES não iniciou. Verifique a internet e toque em Tentar novamente.')},55000);
+ }catch(err){showError(err.message||String(err))}
 }
 document.querySelector('#retry').addEventListener('click',()=>location.reload());
 document.querySelector('#screenFrame').addEventListener('dblclick',immersive);
