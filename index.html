@@ -123,7 +123,7 @@
 </main>
 <script>
 'use strict';
-/* Retro NFC v6 - Nestopia (libretro) por EmulatorJS. */
+/* Retro NFC v7 - Núcleos NES selecionáveis, menos trabalho em segundo plano. */
 const loading=document.querySelector('#loading');
 const error=document.querySelector('#error');
 const errorText=document.querySelector('#errorText');
@@ -131,7 +131,7 @@ const pad=document.querySelector('#dpad');
 const controllerButtons=['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT'];
 const inputIndex={B:0,SELECT:2,START:3,UP:4,DOWN:5,LEFT:6,RIGHT:7,A:8};
 const pressed=new Map();
-const liveInputs=new Set();
+const buttonElements=Object.fromEntries(controllerButtons.map(name=>[name,[...document.querySelectorAll('[data-btn="'+name+'"]')]]));
 let gameReady=false,hasFailed=false,waitingTimer=null;
 function showError(message){
   if(hasFailed)return;
@@ -162,7 +162,7 @@ function keyState(name,source,down){
   if(down)holders.add(source);else holders.delete(source);
   const active=holders.size>0;
   if(was!==active)sendInput(name,active);
-  for(const el of document.querySelectorAll('[data-btn="'+name+'"]'))el.classList.toggle('pressed',active);
+  for(const el of buttonElements[name])el.classList.toggle('pressed',active);
 }
 function unlockAudio(){
   const emulator=ejs();
@@ -228,19 +228,40 @@ for(const el of document.querySelectorAll('button[data-btn]:not(.dir)')){
   for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,ev=>keyState(name,'pointer:'+ev.pointerId,false));
   el.addEventListener('contextmenu',ev=>ev.preventDefault());
 }
-// Físicos via Gamepad API: mesma atribuição do controle NES.
-let gamepadStates={};
+// Evita executar uma segunda rotina a 60 FPS quando NÃO há controle físico.
+// O touch e o teclado continuam sendo processados imediatamente.
+let gamepadStates={}, gamepadFrame=0;
+function getPhysicalGamepad(){
+  return navigator.getGamepads ? Array.from(navigator.getGamepads()).find(gp=>gp?.connected) : null;
+}
+function releaseGamepad(){
+  for(const k of controllerButtons)if(gamepadStates[k])keyState(k,'gamepad',false);
+  gamepadStates={};
+}
 function pollGamepad(){
-  const gp=Array.from(navigator.getGamepads?.()||[]).find(Boolean),next={};
-  if(gp){
-    const b=i=>Boolean(gp.buttons[i]?.pressed),x=gp.axes[0]||0,y=gp.axes[1]||0;
-    Object.assign(next,{UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)});
-  }
+  gamepadFrame=0;
+  if(document.hidden)return;
+  const gp=getPhysicalGamepad();
+  if(!gp){releaseGamepad();return;}
+  const b=i=>Boolean(gp.buttons[i]?.pressed),x=gp.axes[0]||0,y=gp.axes[1]||0;
+  const next={UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)};
   for(const k of controllerButtons)if(Boolean(next[k])!==Boolean(gamepadStates[k]))keyState(k,'gamepad',Boolean(next[k]));
   gamepadStates=next;
-  requestAnimationFrame(pollGamepad);
+  gamepadFrame=requestAnimationFrame(pollGamepad);
 }
-requestAnimationFrame(pollGamepad);
+function scheduleGamepad(){
+  if(!gamepadFrame&&!document.hidden&&getPhysicalGamepad())gamepadFrame=requestAnimationFrame(pollGamepad);
+}
+window.addEventListener('gamepadconnected',scheduleGamepad);
+window.addEventListener('gamepaddisconnected',()=>{releaseGamepad();scheduleGamepad()});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){cancelAnimationFrame(gamepadFrame);gamepadFrame=0;releaseGamepad();}
+  else scheduleGamepad();
+});
+// Alguns navegadores não avisam ao conectar o gamepad. Verificamos raramente,
+// em vez de verificar a cada frame durante todo o jogo.
+setInterval(scheduleGamepad,1500);
+scheduleGamepad();
 // Abre uma ROM diferente por ?jogo=001, ?jogo=002, ?jogo=nome-do-arquivo
 async function escolherJogo(){
   const id=new URLSearchParams(location.search).get('jogo')||'001';
@@ -258,7 +279,7 @@ async function escolherJogo(){
 function loadScript(url){
   return new Promise((resolve,reject)=>{
     const el=document.createElement('script');el.src=url;el.async=true;
-    const timeout=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado ao carregar o Nestopia.'))},25000);
+    const timeout=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado ao carregar o emulador.'))},25000);
     el.onload=()=>{clearTimeout(timeout);resolve()};
     el.onerror=()=>{clearTimeout(timeout);reject(Error('Falha no download do EmulatorJS. Verifique a conexão.'))};
     document.head.appendChild(el);
@@ -267,28 +288,45 @@ function loadScript(url){
 async function boot(){
   try{
     const jogo=await escolherJogo();
+    const params=new URLSearchParams(location.search);
+    // Compare desempenho com o mesmo jogo:
+    // ?jogo=SMB3 (Nestopia) ou ?jogo=SMB3&motor=fceumm (FCEUmm).
+    const motor=params.get('motor')==='fceumm'?'fceumm':'nestopia';
     document.title=jogo.nome+' · NES';
     const url=new URL('./jogos/'+jogo.arquivo,location.href).href;
-    const result=await fetch(url,{cache:'no-store'});
+    const result=await fetch(url,{cache:'default'});
     if(!result.ok)throw Error('ROM não encontrada: jogos/'+jogo.arquivo);
     const data=new Uint8Array(await result.arrayBuffer());
     if(data.length<16 || String.fromCharCode(...data.subarray(0,4))!=='NES\x1a')throw Error('A ROM não é um arquivo NES válido.');
     // Nome da ROM sempre termina em .nes para o EmulatorJS reconhecer a extensão.
     window.EJS_player='#game';
-    window.EJS_core='nestopia'; // IMPORTANTE: 'nes' abriria FCEUmm por padrão.
+    window.EJS_core=motor; // Ambos os núcleos usam os mesmos jogos e controles.
     window.EJS_gameUrl=url;
     window.EJS_gameName=jogo.nome;
     window.EJS_pathtodata='https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded=true;
     window.EJS_color='#cc2246';
     window.EJS_volume=0.85;
+    // Perfil simples para evitar filtros gráficos e processamento de rewind.
+    // Mantém VSync para preservar a cadência; experimente desativá-lo com
+    // ?sincronia=off somente se as travadas persistirem.
+    window.EJS_defaultOptions={
+      shader:'disabled',
+      rewindEnabled:'disabled',
+      fastForward:'disabled',
+      fps:'hide',
+      vsync:params.get('sincronia')==='off'?'disabled':'enabled'
+    };
     window.EJS_controlScheme='nes';
-    window.EJS_onGameStart=()=>{showLoaded();unlockAudio()};
+    window.EJS_onGameStart=()=>{
+      showLoaded();unlockAudio();
+      console.info('[Retro NFC] Núcleo:',motor,'| Sincronização:',window.EJS_defaultOptions.vsync);
+    };
     // Sem uma segunda interface de controles.
     window.EJS_VirtualGamepadSettings={};
     await loadScript('https://cdn.emulatorjs.org/stable/data/loader.js');
     waitingTimer=setTimeout(()=>{
-      if(!gameReady)showError('O núcleo Nestopia não iniciou. Verifique a internet e toque em Tentar novamente.');
+      if(!gameReady)showError('O emulador NES não iniciou. Verifique a internet e toque em Tentar novamente.');
     },55000);
   }catch(err){showError(err.message||String(err))}
 }
