@@ -20,7 +20,7 @@
     #console{width:100vw;height:100vh;height:100dvh;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;background:radial-gradient(ellipse at center,#191a1f 0%,#050607 80%)}
     .display-area{min-height:0;display:flex;align-items:center;justify-content:center;padding:clamp(4px,1.2vmin,14px);overflow:hidden;touch-action:manipulation}
     .screen-frame{position:relative;width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;border-radius:clamp(3px,1vmin,12px);box-shadow:0 0 0 2px #1f2023,0 8px 38px #000b}
-    canvas{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+    #game{position:relative;width:100%;height:100%;min-height:0;background:#000;overflow:hidden}
     .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;pointer-events:none}
     .loading[hidden]{display:none!important}
     .loader{width:29px;height:29px;border:3px solid #32343a;border-top-color:#a0a0a0;border-radius:100%;animation:turn .9s linear infinite}
@@ -80,13 +80,23 @@
       .action-pad{gap:2px}
     }
     @media(prefers-reduced-motion:reduce){.loader{animation:none}}
-  </style>
+  
+    /* Nestopia runs inside EmulatorJS. Only the libretro canvas is visible. */
+    #game.ejs_parent {width:100%;height:100%;min-width:0;min-height:0;outline:none}
+    #game .ejs_canvas_parent, #game .ejs_canvas {width:100%!important;height:100%!important}
+    #game .ejs_canvas {object-fit:contain!important;object-position:center center!important;image-rendering:pixelated;top:0;left:0}
+    #game .ejs_virtualGamepad_parent, #game .ejs_menu_bar,
+    #game .ejs_settings_parent, #game .ejs_start_button,
+    #game .ejs_popup_container, #game .ejs_context_menu {display:none!important}
+    .loading{z-index:15}
+    .error{z-index:20}
+</style>
 </head>
 <body>
 <main id="console" aria-label="Emulador de NES">
   <section class="display-area" aria-label="Tela do jogo">
     <div class="screen-frame" id="screenFrame">
-      <canvas id="screen" width="256" height="240" aria-label="Jogo NES em execução"></canvas>
+      <div id="game" aria-label="Jogo NES em execução"></div>
       <div class="loading" id="loading" role="status" aria-label="Carregando jogo"><div class="loader"></div></div>
       <div class="error" id="error" role="alert" hidden><span id="errorText">Não foi possível carregar o jogo.</span><button class="retry" id="retry" type="button">Tentar novamente</button></div>
     </div>
@@ -113,289 +123,177 @@
 </main>
 <script>
 'use strict';
-const canvas=document.querySelector('#screen');
-const ctx=canvas.getContext('2d',{alpha:false});
-const rgba=ctx.createImageData(256,240);
+/* Retro NFC v6 - Nestopia (libretro) por EmulatorJS. */
 const loading=document.querySelector('#loading');
 const error=document.querySelector('#error');
 const errorText=document.querySelector('#errorText');
 const pad=document.querySelector('#dpad');
-let nes=null, frames=0, lastTick=0, elapsed=0, gameActive=false;
-// Audio v5: usa Web Audio e os samples reais da APU do NES (JSNES).
+const controllerButtons=['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT'];
+const inputIndex={B:0,SELECT:2,START:3,UP:4,DOWN:5,LEFT:6,RIGHT:7,A:8};
 const pressed=new Map();
-function showError(message){loading.hidden=true;errorText.textContent=message;error.hidden=false;console.error('[NES]',message)}
-function showLoaded(){loading.hidden=true;error.hidden=true;gameActive=true}
-function loadScript(url){return new Promise((resolve,reject)=>{
-  const el=document.createElement('script');el.src=url;el.async=true;
-  const timer=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado'))},14000);
-  el.onload=()=>{clearTimeout(timer);resolve()};el.onerror=()=>{clearTimeout(timer);reject(Error('Não foi possível baixar o emulador'))};document.head.appendChild(el);
-})}
-async function ensureJSNES(){
-  if(window.jsnes?.NES)return;
-  const cdns=[
-    'https://cdn.jsdelivr.net/npm/jsnes@2.1.0/dist/jsnes.min.js',
-    'https://unpkg.com/jsnes@2.1.0/dist/jsnes.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jsnes/2.1.0/jsnes.min.js'
-  ];
-  for(const url of cdns){try{await loadScript(url);if(window.jsnes?.NES)return}catch(e){console.warn('[NES]',url,e)}}
-  throw Error('Não foi possível carregar o emulador. Confira sua conexão com a internet.');
+const liveInputs=new Set();
+let gameReady=false,hasFailed=false,waitingTimer=null;
+function showError(message){
+  if(hasFailed)return;
+  hasFailed=true;clearTimeout(waitingTimer);
+  loading.hidden=true;error.hidden=false;errorText.textContent=message;
+  console.error('[Retro NFC / Nestopia]',message);
 }
-// ===== NES AUDIO (Web Audio API) ============================================
-// O JSNES gera audio atraves de onAudioSample; o navegador reproduz os samples.
-// AudioWorklet evita estalos quando o desenho do jogo ocupa a thread principal.
-// ScriptProcessor fica como compatibilidade para navegadores mais antigos.
-let audioContext=null, audioNode=null, audioMode='off';
-let audioVolume=0.80, audioGestureSeen=false;
-const audioRingSize=32768;
-const audioLeft=new Float32Array(audioRingSize);
-const audioRight=new Float32Array(audioRingSize);
-let audioRead=0, audioWrite=0, audioCount=0, audioReady=false;
-let chunk=new Float32Array(4096), chunkSamples=0;
-
-const processorCode=`
-class RetroNesSound extends AudioWorkletProcessor {
-  constructor(){
-    super();
-    this.limit=32768;
-    this.left=new Float32Array(this.limit);
-    this.right=new Float32Array(this.limit);
-    this.read=0;this.write=0;this.count=0;this.ready=false;
-    this.maxSamples=Math.round(sampleRate*0.14);
-    this.minSamples=Math.min(1024,Math.round(sampleRate*0.025));
-    this.port.onmessage=(event)=>{
-      const data=event.data;
-      if(data.type==='clear'){
-        this.read=0;this.write=0;this.count=0;this.ready=false;
-        return;
-      }
-      if(data.type!=='pcm')return;
-      const pcm=data.pcm;
-      for(let i=0;i<pcm.length;i+=2){
-        if(this.count>=this.maxSamples){this.read=(this.read+1)%this.limit;this.count--;}
-        this.left[this.write]=pcm[i];
-        this.right[this.write]=pcm[i+1];
-        this.write=(this.write+1)%this.limit;
-        this.count++;
-      }
-    };
-  }
-  process(inputs,outputs){
-    const out=outputs[0];if(!out)return true;
-    const l=out[0], r=out[1]||out[0];
-    if(!this.ready&&this.count>=this.minSamples)this.ready=true;
-    for(let i=0;i<l.length;i++){
-      if(this.ready&&this.count){
-        l[i]=this.left[this.read];r[i]=this.right[this.read];
-        this.read=(this.read+1)%this.limit;this.count--;
-      } else {l[i]=0;r[i]=0;}
-      if(!this.count)this.ready=false;
-    }
-    return true;
-  }
+function showLoaded(){
+  if(hasFailed)return;
+  gameReady=true;clearTimeout(waitingTimer);loading.hidden=true;error.hidden=true;
+  // Reenvia os botões que estiverem pressionados durante o carregamento.
+  for(const name of controllerButtons){if(pressed.get(name)?.size)sendInput(name,true)}
 }
-registerProcessor('retro-nes-sound',RetroNesSound);
-`;
-
-function clearAudioQueue(){
-  audioRead=audioWrite=audioCount=0;audioReady=false;chunkSamples=0;
-  if(audioMode==='worklet')audioNode.port.postMessage({type:'clear'});
-}
-async function prepareAudio(){
-  const AudioContextType=window.AudioContext||window.webkitAudioContext;
-  if(!AudioContextType){console.warn('[NES] AudioContext não disponível.');return;}
-  try{
-    audioContext=new AudioContextType({latencyHint:'interactive'});
-    if(audioContext.audioWorklet&&window.AudioWorkletNode){
-      const blob=new Blob([processorCode],{type:'text/javascript'});
-      const url=URL.createObjectURL(blob);
-      try{
-        await audioContext.audioWorklet.addModule(url);
-        audioNode=new AudioWorkletNode(audioContext,'retro-nes-sound',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
-        audioNode.connect(audioContext.destination);
-        audioMode='worklet';
-      }catch(e){console.warn('[NES] AudioWorklet indisponível; usando compatibilidade.',e)}
-      finally{URL.revokeObjectURL(url)}
-    }
-    if(!audioNode&&audioContext.createScriptProcessor){
-      audioNode=audioContext.createScriptProcessor(1024,0,2);
-      audioNode.onaudioprocess=event=>{
-        const l=event.outputBuffer.getChannelData(0);
-        const r=event.outputBuffer.getChannelData(1);
-        if(!audioReady&&audioCount>=1024)audioReady=true;
-        for(let i=0;i<l.length;i++){
-          if(audioReady&&audioCount){
-            l[i]=audioLeft[audioRead];r[i]=audioRight[audioRead];
-            audioRead=(audioRead+1)%audioRingSize;audioCount--;
-          }else{l[i]=0;r[i]=0;}
-          if(!audioCount)audioReady=false;
-        }
-      };
-      audioNode.connect(audioContext.destination);
-      audioMode='script';
-    }
-    if(!audioNode){console.warn('[NES] Saída de áudio indisponível.');audioMode='off';}
-    if(audioGestureSeen)resumeAudio();
-  }catch(e){console.warn('[NES] Falha ao preparar o áudio.',e);audioMode='off';}
-}
-function resumeAudio(){
-  audioGestureSeen=true;
-  if(!audioContext||!audioNode)return;
-  if(audioContext.state!=='running'){
-    clearAudioQueue();
-    audioContext.resume().catch(e=>console.warn('[NES] O navegador não liberou o áudio.',e));
-  }
-}
-// Chamadas em um gesto real; Chrome/Safari bloqueiam áudio automático.
-document.addEventListener('pointerdown',resumeAudio,{capture:true,passive:true});
-document.addEventListener('keydown',resumeAudio,{capture:true});
-document.addEventListener('touchstart',resumeAudio,{capture:true,passive:true});
-document.addEventListener('visibilitychange',()=>{
-  if(!audioContext)return;
-  if(document.hidden){clearAudioQueue();audioContext.suspend().catch(()=>{});}
-  // Ao voltar, o som é liberado novamente ao tocar em um botão.
-});
-function onAudioSample(left,right){
-  if(!audioContext||audioContext.state!=='running'||audioMode==='off')return;
-  const l=Math.max(-1,Math.min(1,left))*audioVolume;
-  const r=Math.max(-1,Math.min(1,right))*audioVolume;
-  if(audioMode==='worklet'){
-    if(chunkSamples*2>=chunk.length)flushAudio();
-    chunk[chunkSamples*2]=l;chunk[chunkSamples*2+1]=r;chunkSamples++;
-  }else{
-    const maxSamples=Math.round(audioContext.sampleRate*0.14);
-    if(audioCount>=maxSamples){audioRead=(audioRead+1)%audioRingSize;audioCount--;}
-    audioLeft[audioWrite]=l;audioRight[audioWrite]=r;
-    audioWrite=(audioWrite+1)%audioRingSize;audioCount++;
-  }
-}
-function flushAudio(){
-  if(audioMode==='worklet'&&audioNode&&chunkSamples){
-    const pcm=chunk.slice(0,chunkSamples*2);
-    audioNode.port.postMessage({type:'pcm',pcm},[pcm.buffer]);
-    chunkSamples=0;
-  }
-}
-// ============================================================================
-
-function renderFrame(buffer){
-  const d=rgba.data;
-  for(let i=0,j=0;i<buffer.length;i++,j+=4){const p=buffer[i];d[j]=p&255;d[j+1]=p>>>8&255;d[j+2]=p>>>16&255;d[j+3]=255}
-  ctx.putImageData(rgba,0,0);frames++;
-  if(frames===3)showLoaded();
+function ejs(){return window.EJS_emulator||null}
+function sendInput(name,down){
+  if(!gameReady)return;
+  const manager=ejs()?.gameManager;
+  if(!manager || typeof manager.simulateInput!=='function')return;
+  const ix=inputIndex[name];
+  if(ix===undefined)return;
+  try{manager.simulateInput(0,ix,down?1:0)}catch(err){console.warn('[NES] Falha no controle',err)}
 }
 function keyState(name,source,down){
-  if(!nes||!window.jsnes?.Controller)return;
-  const b=window.jsnes.Controller['BUTTON_'+name];if(b===undefined)return;
-  let holders=pressed.get(name);if(!holders){holders=new Set();pressed.set(name,holders)}
+  if(!controllerButtons.includes(name))return;
+  let holders=pressed.get(name);
+  if(!holders){holders=new Set();pressed.set(name,holders)}
   const was=holders.size>0;
   if(down)holders.add(source);else holders.delete(source);
-  if(!was&&holders.size)nes.buttonDown(1,b);
-  if(was&&!holders.size)nes.buttonUp(1,b);
-  for(const el of document.querySelectorAll(`[data-btn="${name}"]`))el.classList.toggle('pressed',holders.size>0);
+  const active=holders.size>0;
+  if(was!==active)sendInput(name,active);
+  for(const el of document.querySelectorAll('[data-btn="'+name+'"]'))el.classList.toggle('pressed',active);
 }
-const keymap={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',KeyX:'A',KeyZ:'B',Enter:'START',ShiftRight:'SELECT',KeyK:'B',KeyL:'A'};
-document.addEventListener('keydown',e=>{const name=keymap[e.code];if(name){e.preventDefault();keyState(name,'keyboard',true)}});
-document.addEventListener('keyup',e=>{const name=keymap[e.code];if(name){e.preventDefault();keyState(name,'keyboard',false)}});
-window.addEventListener('blur',()=>{for(const name of new Set(Object.values(keymap)))keyState(name,'keyboard',false);for(const name of ['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT'])keyState(name,'touch',false)});
+function unlockAudio(){
+  const emulator=ejs();
+  const audio=emulator?.Module?.AL?.currentCtx;
+  if(audio?.state==='suspended')audio.resume().catch(()=>{});
+  // A própria libretro também processa o áudio ao receber o primeiro toque.
+}
 function immersive(){
-  if(document.fullscreenElement||window.matchMedia('(display-mode: fullscreen)').matches||window.matchMedia('(display-mode: standalone)').matches||navigator.standalone)return;
+  if(document.fullscreenElement || window.matchMedia('(display-mode: fullscreen)').matches || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone)return;
   if(!document.documentElement.requestFullscreen)return;
-  try{const p=document.documentElement.requestFullscreen({navigationUI:'hide'});if(p?.catch)p.catch(()=>{})}catch(e){}
+  try{const p=document.documentElement.requestFullscreen({navigationUI:'hide'});if(p?.catch)p.catch(()=>{})}catch{}
 }
-// The D-pad handles continuous movement, including sliding to a different direction and diagonals.
+// Keyboard input uses our controls, not a second set of EmulatorJS shortcuts.
+const keymap={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',KeyX:'A',KeyZ:'B',Enter:'START',ShiftRight:'SELECT',KeyK:'B',KeyL:'A'};
+document.addEventListener('keydown',e=>{
+  const name=keymap[e.code];if(!name)return;
+  e.preventDefault();e.stopImmediatePropagation();unlockAudio();keyState(name,'keyboard',true);
+},true);
+document.addEventListener('keyup',e=>{
+  const name=keymap[e.code];if(!name)return;
+  e.preventDefault();e.stopImmediatePropagation();keyState(name,'keyboard',false);
+},true);
+window.addEventListener('blur',()=>{
+  for(const name of controllerButtons){
+    for(const source of [...(pressed.get(name)||[])])keyState(name,source,false);
+  }
+});
+// Direcional: aceita diagonal e mudar de direção deslizando o dedo.
 function dpadMove(ev,source){
-  const box=pad.getBoundingClientRect();const x=(ev.clientX-box.left)/box.width-.5,y=(ev.clientY-box.top)/box.height-.5;
+  const box=pad.getBoundingClientRect();
+  const x=(ev.clientX-box.left)/box.width-.5, y=(ev.clientY-box.top)/box.height-.5;
   const next={UP:y<-.20,DOWN:y>.20,LEFT:x<-.20,RIGHT:x>.20};
   if(Math.abs(x)<.14&&Math.abs(y)<.14)Object.keys(next).forEach(k=>next[k]=false);
   for(const name of Object.keys(next))keyState(name,source,next[name]);
   pad.classList.toggle('held',Object.values(next).some(Boolean));
 }
 const padPointers=new Set();
-pad.addEventListener('pointerdown',e=>{
-  e.preventDefault();if(e.pointerType!=='mouse')immersive();
-  const source='dpad:'+e.pointerId;padPointers.add(source);
-  try{pad.setPointerCapture(e.pointerId)}catch(e){}
-  dpadMove(e,source);
+pad.addEventListener('pointerdown',ev=>{
+  ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();
+  const source='dpad:'+ev.pointerId;padPointers.add(source);
+  try{pad.setPointerCapture(ev.pointerId)}catch{}
+  dpadMove(ev,source);
 });
-pad.addEventListener('pointermove',e=>{const source='dpad:'+e.pointerId;if(padPointers.has(source)){e.preventDefault();dpadMove(e,source)}});
-function releasePad(e){const source='dpad:'+e.pointerId;if(!padPointers.has(source))return;padPointers.delete(source);for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);if(!padPointers.size)pad.classList.remove('held')}
-for(const ev of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,releasePad);
-// Keep the A/B and Start/Select buttons responsive to multi-touch.
+pad.addEventListener('pointermove',ev=>{
+  const source='dpad:'+ev.pointerId;
+  if(padPointers.has(source)){ev.preventDefault();dpadMove(ev,source)}
+});
+function releasePad(ev){
+  const source='dpad:'+ev.pointerId;
+  if(!padPointers.has(source))return;
+  padPointers.delete(source);
+  for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);
+  if(!padPointers.size)pad.classList.remove('held');
+}
+for(const event of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(event,releasePad);
 for(const el of document.querySelectorAll('button[data-btn]:not(.dir)')){
   const name=el.dataset.btn;
-  el.addEventListener('pointerdown',e=>{e.preventDefault();if(e.pointerType!=='mouse')immersive();try{el.setPointerCapture(e.pointerId)}catch{}keyState(name,'pointer:'+e.pointerId,true)});
-  for(const type of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(type,e=>keyState(name,'pointer:'+e.pointerId,false));
-  el.addEventListener('contextmenu',e=>e.preventDefault());
+  el.addEventListener('pointerdown',ev=>{
+    ev.preventDefault();unlockAudio();if(ev.pointerType!=='mouse')immersive();
+    try{el.setPointerCapture(ev.pointerId)}catch{}
+    keyState(name,'pointer:'+ev.pointerId,true);
+  });
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,ev=>keyState(name,'pointer:'+ev.pointerId,false));
+  el.addEventListener('contextmenu',ev=>ev.preventDefault());
 }
-let gamepadStates={};function pollGamepad(){
-  if(!nes||!navigator.getGamepads)return;
-  const gp=Array.from(navigator.getGamepads()||[]).find(Boolean),next={};
-  if(gp){const b=i=>Boolean(gp.buttons[i]?.pressed);const x=gp.axes[0]||0,y=gp.axes[1]||0;
+// Físicos via Gamepad API: mesma atribuição do controle NES.
+let gamepadStates={};
+function pollGamepad(){
+  const gp=Array.from(navigator.getGamepads?.()||[]).find(Boolean),next={};
+  if(gp){
+    const b=i=>Boolean(gp.buttons[i]?.pressed),x=gp.axes[0]||0,y=gp.axes[1]||0;
     Object.assign(next,{UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)});
   }
-  for(const k of ['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT']){if(!!next[k]!==!!gamepadStates[k])keyState(k,'gamepad',!!next[k])}
+  for(const k of controllerButtons)if(Boolean(next[k])!==Boolean(gamepadStates[k]))keyState(k,'gamepad',Boolean(next[k]));
   gamepadStates=next;
+  requestAnimationFrame(pollGamepad);
 }
-function tick(t){if(!nes)return;pollGamepad();if(!lastTick)lastTick=t;
-  elapsed+=Math.min(70,t-lastTick);lastTick=t;let n=0;
-  while(elapsed>=1000/60&&n<3){try{nes.frame();flushAudio()}catch(e){nes=null;showError('O jogo parou de executar.');return}elapsed-=1000/60;n++}
-  if(n===3&&elapsed>150)elapsed=0;
-  requestAnimationFrame(tick);
-}
-// Cada TAG NFC pode usar um jogo diferente: ?jogo=001, ?jogo=002, ...
-// Também é possível abrir qualquer arquivo em jogos/ pelo nome: ?jogo=meu-jogo
-// O emulador e os controles continuam compartilhados por todos os cartuchos.
+requestAnimationFrame(pollGamepad);
+// Abre uma ROM diferente por ?jogo=001, ?jogo=002, ?jogo=nome-do-arquivo
 async function escolherJogo(){
   const id=new URLSearchParams(location.search).get('jogo')||'001';
-  if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?:\.nes)?$/.test(id)){
-    throw Error('Código do cartucho inválido. Use letras, números, hífen ou sublinhado.');
-  }
-  let catalogo;
-  try{
-    const resposta=await fetch('./jogos/catalogo.json',{cache:'no-store'});
-    if(!resposta.ok)throw Error('HTTP '+resposta.status);
-    catalogo=await resposta.json();
-  }catch(e){
-    throw Error('Não foi possível abrir jogos/catalogo.json. Confira se enviou o arquivo para o GitHub.');
-  }
-  if(!catalogo||typeof catalogo!=='object'||Array.isArray(catalogo)){
-    throw Error('O arquivo catalogo.json precisa conter um objeto de jogos.');
-  }
+  if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?:\.nes)?$/.test(id))throw Error('Código de cartucho inválido.');
+  const resp=await fetch('./jogos/catalogo.json',{cache:'no-store'});
+  if(!resp.ok)throw Error('Não foi possível carregar jogos/catalogo.json.');
+  const catalogo=await resp.json();
+  if(!catalogo||typeof catalogo!=='object'||Array.isArray(catalogo))throw Error('Catálogo de jogos inválido.');
   const ficha=Object.prototype.hasOwnProperty.call(catalogo,id)?catalogo[id]:null;
-  if(!ficha&&/^\d+$/.test(id)){
-    throw Error('Cartucho '+id+' não cadastrado em jogos/catalogo.json.');
-  }
-  // Nome direto dispensa editar o catálogo; basta enviar jogos/nome-do-jogo.nes.
+  if(!ficha&&/^\d+$/.test(id))throw Error('Cartucho '+id+' não está cadastrado.');
   const arquivo=ficha?.arquivo||(id.toLowerCase().endsWith('.nes')?id:id+'.nes');
-  if(typeof arquivo!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.nes$/i.test(arquivo)){
-    throw Error('Nome de ROM inválido para o cartucho '+id+'. Renomeie o arquivo sem espaços.');
-  }
+  if(typeof arquivo!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.nes$/i.test(arquivo))throw Error('Nome da ROM inválido.');
   return {id,arquivo,nome:typeof ficha?.nome==='string'?ficha.nome:id};
+}
+function loadScript(url){
+  return new Promise((resolve,reject)=>{
+    const el=document.createElement('script');el.src=url;el.async=true;
+    const timeout=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado ao carregar o Nestopia.'))},25000);
+    el.onload=()=>{clearTimeout(timeout);resolve()};
+    el.onerror=()=>{clearTimeout(timeout);reject(Error('Falha no download do EmulatorJS. Verifique a conexão.'))};
+    document.head.appendChild(el);
+  });
 }
 async function boot(){
   try{
     const jogo=await escolherJogo();
     document.title=jogo.nome+' · NES';
-    const caminho='./jogos/'+jogo.arquivo;
-    const rom=await fetch(caminho,{cache:'no-store'});
-    if(!rom.ok){
-      if(rom.status===404)throw Error('ROM não encontrada: '+caminho+'. Confira o nome do arquivo em jogos/.');
-      throw Error('Não foi possível baixar a ROM (HTTP '+rom.status+').');
-    }
-    const buffer=new Uint8Array(await rom.arrayBuffer());
-    if(buffer.length<16||String.fromCharCode(...buffer.subarray(0,4))!=='NES\x1a'){
-      throw Error('O arquivo '+jogo.arquivo+' não é uma ROM NES válida.');
-    }
-    await ensureJSNES();
-    let binary='';for(let i=0;i<buffer.length;i+=8192)binary+=String.fromCharCode(...buffer.subarray(i,i+8192));
-    await prepareAudio();
-    nes=new window.jsnes.NES({onFrame:renderFrame,onAudioSample,emulateSound:audioMode!=='off',sampleRate:audioContext?.sampleRate||48000});
-    nes.loadROM(binary);requestAnimationFrame(tick);
-    setTimeout(()=>{if(!gameActive&&nes){showError('O jogo não produziu imagem. Ele pode não ser compatível com o JSNES.')}},7000);
-  }catch(e){nes=null;showError(e.message||String(e))}
+    const url=new URL('./jogos/'+jogo.arquivo,location.href).href;
+    const result=await fetch(url,{cache:'no-store'});
+    if(!result.ok)throw Error('ROM não encontrada: jogos/'+jogo.arquivo);
+    const data=new Uint8Array(await result.arrayBuffer());
+    if(data.length<16 || String.fromCharCode(...data.subarray(0,4))!=='NES\x1a')throw Error('A ROM não é um arquivo NES válido.');
+    // Nome da ROM sempre termina em .nes para o EmulatorJS reconhecer a extensão.
+    window.EJS_player='#game';
+    window.EJS_core='nestopia'; // IMPORTANTE: 'nes' abriria FCEUmm por padrão.
+    window.EJS_gameUrl=url;
+    window.EJS_gameName=jogo.nome;
+    window.EJS_pathtodata='https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_startOnLoaded=true;
+    window.EJS_color='#cc2246';
+    window.EJS_volume=0.85;
+    window.EJS_controlScheme='nes';
+    window.EJS_onGameStart=()=>{showLoaded();unlockAudio()};
+    // Sem uma segunda interface de controles.
+    window.EJS_VirtualGamepadSettings={};
+    await loadScript('https://cdn.emulatorjs.org/stable/data/loader.js');
+    waitingTimer=setTimeout(()=>{
+      if(!gameReady)showError('O núcleo Nestopia não iniciou. Verifique a internet e toque em Tentar novamente.');
+    },55000);
+  }catch(err){showError(err.message||String(err))}
 }
 document.querySelector('#retry').addEventListener('click',()=>location.reload());
-document.querySelector('#screenFrame').addEventListener('dblclick',()=>immersive());
+document.querySelector('#screenFrame').addEventListener('dblclick',immersive);
 boot();
 </script>
 </body>
