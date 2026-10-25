@@ -121,6 +121,7 @@ const error=document.querySelector('#error');
 const errorText=document.querySelector('#errorText');
 const pad=document.querySelector('#dpad');
 let nes=null, frames=0, lastTick=0, elapsed=0, gameActive=false;
+// Audio v5: usa Web Audio e os samples reais da APU do NES (JSNES).
 const pressed=new Map();
 function showError(message){loading.hidden=true;errorText.textContent=message;error.hidden=false;console.error('[NES]',message)}
 function showLoaded(){loading.hidden=true;error.hidden=true;gameActive=true}
@@ -139,6 +140,143 @@ async function ensureJSNES(){
   for(const url of cdns){try{await loadScript(url);if(window.jsnes?.NES)return}catch(e){console.warn('[NES]',url,e)}}
   throw Error('Não foi possível carregar o emulador. Confira sua conexão com a internet.');
 }
+// ===== NES AUDIO (Web Audio API) ============================================
+// O JSNES gera audio atraves de onAudioSample; o navegador reproduz os samples.
+// AudioWorklet evita estalos quando o desenho do jogo ocupa a thread principal.
+// ScriptProcessor fica como compatibilidade para navegadores mais antigos.
+let audioContext=null, audioNode=null, audioMode='off';
+let audioVolume=0.80, audioGestureSeen=false;
+const audioRingSize=32768;
+const audioLeft=new Float32Array(audioRingSize);
+const audioRight=new Float32Array(audioRingSize);
+let audioRead=0, audioWrite=0, audioCount=0, audioReady=false;
+let chunk=new Float32Array(4096), chunkSamples=0;
+
+const processorCode=`
+class RetroNesSound extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    this.limit=32768;
+    this.left=new Float32Array(this.limit);
+    this.right=new Float32Array(this.limit);
+    this.read=0;this.write=0;this.count=0;this.ready=false;
+    this.maxSamples=Math.round(sampleRate*0.14);
+    this.minSamples=Math.min(1024,Math.round(sampleRate*0.025));
+    this.port.onmessage=(event)=>{
+      const data=event.data;
+      if(data.type==='clear'){
+        this.read=0;this.write=0;this.count=0;this.ready=false;
+        return;
+      }
+      if(data.type!=='pcm')return;
+      const pcm=data.pcm;
+      for(let i=0;i<pcm.length;i+=2){
+        if(this.count>=this.maxSamples){this.read=(this.read+1)%this.limit;this.count--;}
+        this.left[this.write]=pcm[i];
+        this.right[this.write]=pcm[i+1];
+        this.write=(this.write+1)%this.limit;
+        this.count++;
+      }
+    };
+  }
+  process(inputs,outputs){
+    const out=outputs[0];if(!out)return true;
+    const l=out[0], r=out[1]||out[0];
+    if(!this.ready&&this.count>=this.minSamples)this.ready=true;
+    for(let i=0;i<l.length;i++){
+      if(this.ready&&this.count){
+        l[i]=this.left[this.read];r[i]=this.right[this.read];
+        this.read=(this.read+1)%this.limit;this.count--;
+      } else {l[i]=0;r[i]=0;}
+      if(!this.count)this.ready=false;
+    }
+    return true;
+  }
+}
+registerProcessor('retro-nes-sound',RetroNesSound);
+`;
+
+function clearAudioQueue(){
+  audioRead=audioWrite=audioCount=0;audioReady=false;chunkSamples=0;
+  if(audioMode==='worklet')audioNode.port.postMessage({type:'clear'});
+}
+async function prepareAudio(){
+  const AudioContextType=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextType){console.warn('[NES] AudioContext não disponível.');return;}
+  try{
+    audioContext=new AudioContextType({latencyHint:'interactive'});
+    if(audioContext.audioWorklet&&window.AudioWorkletNode){
+      const blob=new Blob([processorCode],{type:'text/javascript'});
+      const url=URL.createObjectURL(blob);
+      try{
+        await audioContext.audioWorklet.addModule(url);
+        audioNode=new AudioWorkletNode(audioContext,'retro-nes-sound',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+        audioNode.connect(audioContext.destination);
+        audioMode='worklet';
+      }catch(e){console.warn('[NES] AudioWorklet indisponível; usando compatibilidade.',e)}
+      finally{URL.revokeObjectURL(url)}
+    }
+    if(!audioNode&&audioContext.createScriptProcessor){
+      audioNode=audioContext.createScriptProcessor(1024,0,2);
+      audioNode.onaudioprocess=event=>{
+        const l=event.outputBuffer.getChannelData(0);
+        const r=event.outputBuffer.getChannelData(1);
+        if(!audioReady&&audioCount>=1024)audioReady=true;
+        for(let i=0;i<l.length;i++){
+          if(audioReady&&audioCount){
+            l[i]=audioLeft[audioRead];r[i]=audioRight[audioRead];
+            audioRead=(audioRead+1)%audioRingSize;audioCount--;
+          }else{l[i]=0;r[i]=0;}
+          if(!audioCount)audioReady=false;
+        }
+      };
+      audioNode.connect(audioContext.destination);
+      audioMode='script';
+    }
+    if(!audioNode){console.warn('[NES] Saída de áudio indisponível.');audioMode='off';}
+    if(audioGestureSeen)resumeAudio();
+  }catch(e){console.warn('[NES] Falha ao preparar o áudio.',e);audioMode='off';}
+}
+function resumeAudio(){
+  audioGestureSeen=true;
+  if(!audioContext||!audioNode)return;
+  if(audioContext.state!=='running'){
+    clearAudioQueue();
+    audioContext.resume().catch(e=>console.warn('[NES] O navegador não liberou o áudio.',e));
+  }
+}
+// Chamadas em um gesto real; Chrome/Safari bloqueiam áudio automático.
+document.addEventListener('pointerdown',resumeAudio,{capture:true,passive:true});
+document.addEventListener('keydown',resumeAudio,{capture:true});
+document.addEventListener('touchstart',resumeAudio,{capture:true,passive:true});
+document.addEventListener('visibilitychange',()=>{
+  if(!audioContext)return;
+  if(document.hidden){clearAudioQueue();audioContext.suspend().catch(()=>{});}
+  // Ao voltar, o som é liberado novamente ao tocar em um botão.
+});
+function onAudioSample(left,right){
+  if(!audioContext||audioContext.state!=='running'||audioMode==='off')return;
+  const l=Math.max(-1,Math.min(1,left))*audioVolume;
+  const r=Math.max(-1,Math.min(1,right))*audioVolume;
+  if(audioMode==='worklet'){
+    if(chunkSamples*2>=chunk.length)flushAudio();
+    chunk[chunkSamples*2]=l;chunk[chunkSamples*2+1]=r;chunkSamples++;
+  }else{
+    const maxSamples=Math.round(audioContext.sampleRate*0.14);
+    if(audioCount>=maxSamples){audioRead=(audioRead+1)%audioRingSize;audioCount--;}
+    audioLeft[audioWrite]=l;audioRight[audioWrite]=r;
+    audioWrite=(audioWrite+1)%audioRingSize;audioCount++;
+  }
+}
+function flushAudio(){
+  if(audioMode==='worklet'&&audioNode&&chunkSamples){
+    const pcm=chunk.slice(0,chunkSamples*2);
+    audioNode.port.postMessage({type:'pcm',pcm},[pcm.buffer]);
+    chunkSamples=0;
+  }
+}
+// ============================================================================
+
 function renderFrame(buffer){
   const d=rgba.data;
   for(let i=0,j=0;i<buffer.length;i++,j+=4){const p=buffer[i];d[j]=p&255;d[j+1]=p>>>8&255;d[j+2]=p>>>16&255;d[j+3]=255}
@@ -200,7 +338,7 @@ let gamepadStates={};function pollGamepad(){
 }
 function tick(t){if(!nes)return;pollGamepad();if(!lastTick)lastTick=t;
   elapsed+=Math.min(70,t-lastTick);lastTick=t;let n=0;
-  while(elapsed>=1000/60&&n<3){try{nes.frame()}catch(e){nes=null;showError('O jogo parou de executar.');return}elapsed-=1000/60;n++}
+  while(elapsed>=1000/60&&n<3){try{nes.frame();flushAudio()}catch(e){nes=null;showError('O jogo parou de executar.');return}elapsed-=1000/60;n++}
   if(n===3&&elapsed>150)elapsed=0;
   requestAnimationFrame(tick);
 }
@@ -250,7 +388,8 @@ async function boot(){
     }
     await ensureJSNES();
     let binary='';for(let i=0;i<buffer.length;i+=8192)binary+=String.fromCharCode(...buffer.subarray(i,i+8192));
-    nes=new window.jsnes.NES({onFrame:renderFrame,emulateSound:false});
+    await prepareAudio();
+    nes=new window.jsnes.NES({onFrame:renderFrame,onAudioSample,emulateSound:audioMode!=='off',sampleRate:audioContext?.sampleRate||48000});
     nes.loadROM(binary);requestAnimationFrame(tick);
     setTimeout(()=>{if(!gameActive&&nes){showError('O jogo não produziu imagem. Ele pode não ser compatível com o JSNES.')}},7000);
   }catch(e){nes=null;showError(e.message||String(e))}
