@@ -204,17 +204,55 @@ function tick(t){if(!nes)return;pollGamepad();if(!lastTick)lastTick=t;
   if(n===3&&elapsed>150)elapsed=0;
   requestAnimationFrame(tick);
 }
+// Cada TAG NFC pode usar um jogo diferente: ?jogo=001, ?jogo=002, ...
+// Também é possível abrir qualquer arquivo em jogos/ pelo nome: ?jogo=meu-jogo
+// O emulador e os controles continuam compartilhados por todos os cartuchos.
+async function escolherJogo(){
+  const id=new URLSearchParams(location.search).get('jogo')||'001';
+  if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?:\.nes)?$/.test(id)){
+    throw Error('Código do cartucho inválido. Use letras, números, hífen ou sublinhado.');
+  }
+  let catalogo;
+  try{
+    const resposta=await fetch('./jogos/catalogo.json',{cache:'no-store'});
+    if(!resposta.ok)throw Error('HTTP '+resposta.status);
+    catalogo=await resposta.json();
+  }catch(e){
+    throw Error('Não foi possível abrir jogos/catalogo.json. Confira se enviou o arquivo para o GitHub.');
+  }
+  if(!catalogo||typeof catalogo!=='object'||Array.isArray(catalogo)){
+    throw Error('O arquivo catalogo.json precisa conter um objeto de jogos.');
+  }
+  const ficha=Object.prototype.hasOwnProperty.call(catalogo,id)?catalogo[id]:null;
+  if(!ficha&&/^\d+$/.test(id)){
+    throw Error('Cartucho '+id+' não cadastrado em jogos/catalogo.json.');
+  }
+  // Nome direto dispensa editar o catálogo; basta enviar jogos/nome-do-jogo.nes.
+  const arquivo=ficha?.arquivo||(id.toLowerCase().endsWith('.nes')?id:id+'.nes');
+  if(typeof arquivo!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.nes$/i.test(arquivo)){
+    throw Error('Nome de ROM inválido para o cartucho '+id+'. Renomeie o arquivo sem espaços.');
+  }
+  return {id,arquivo,nome:typeof ficha?.nome==='string'?ficha.nome:id};
+}
 async function boot(){
   try{
-    const rom=await fetch('./jogos/coleta-estrelas.nes',{cache:'no-store'});
-    if(!rom.ok)throw Error('ROM não encontrada. Verifique a pasta jogos no GitHub.');
+    const jogo=await escolherJogo();
+    document.title=jogo.nome+' · NES';
+    const caminho='./jogos/'+jogo.arquivo;
+    const rom=await fetch(caminho,{cache:'no-store'});
+    if(!rom.ok){
+      if(rom.status===404)throw Error('ROM não encontrada: '+caminho+'. Confira o nome do arquivo em jogos/.');
+      throw Error('Não foi possível baixar a ROM (HTTP '+rom.status+').');
+    }
     const buffer=new Uint8Array(await rom.arrayBuffer());
-    if(buffer.length<16||String.fromCharCode(...buffer.subarray(0,4))!=='NES\x1a')throw Error('Arquivo NES inválido.');
+    if(buffer.length<16||String.fromCharCode(...buffer.subarray(0,4))!=='NES\x1a'){
+      throw Error('O arquivo '+jogo.arquivo+' não é uma ROM NES válida.');
+    }
     await ensureJSNES();
     let binary='';for(let i=0;i<buffer.length;i+=8192)binary+=String.fromCharCode(...buffer.subarray(i,i+8192));
     nes=new window.jsnes.NES({onFrame:renderFrame,emulateSound:false});
     nes.loadROM(binary);requestAnimationFrame(tick);
-    setTimeout(()=>{if(!gameActive&&nes){showError('O jogo não produziu imagem. Tente recarregar a página.')}},7000);
+    setTimeout(()=>{if(!gameActive&&nes){showError('O jogo não produziu imagem. Ele pode não ser compatível com o JSNES.')}},7000);
   }catch(e){nes=null;showError(e.message||String(e))}
 }
 document.querySelector('#retry').addEventListener('click',()=>location.reload());
