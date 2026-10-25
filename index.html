@@ -1,166 +1,225 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#081727" />
-<title>Retro NFC · Coleta-Estrelas NES</title>
-<style>
-:root { color-scheme: dark; --a:#50dfc8; --bg:#071421; --panel:#102339; --edge:#29455d; --text:#eff8fc; --muted:#a3bdce }
-* { box-sizing: border-box; }
-body { margin:0; min-height:100dvh; background:radial-gradient(ellipse at 50% 0%,#19334c,#071421 65%); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,sans-serif }
-header { max-width:880px; margin:0 auto; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px }
-.brand { font-size:15px; letter-spacing:2px; color:var(--a); font-weight:900 }
-.brand b { padding:7px; background:var(--a); color:#061624; border-radius:7px; margin-right:6px }
-main { max-width:740px; margin:0 auto; padding:7px 12px 22px; }
-h1 { font-size:clamp(18px,3.3vw,27px); margin:3px 0 6px } h1 span { color:var(--a) }
-p { margin:0; line-height:1.48 } .intro { font-size:12px; color:var(--muted); margin-bottom:12px }
-.screenShell { background:#050a0e; border:2px solid #38637a; border-radius:15px; overflow:hidden; box-shadow:0 16px 40px #0008 }
-.screenShell .topbar { background:#14263a; height:28px; padding:7px 14px; text-align:center; color:#82abb9; font-size:10px; letter-spacing:3px; font-weight:800 }
-.screenBox { position:relative; display:flex; align-items:center; justify-content:center; background:#000; }
-canvas { display:block; width:100%; max-height:min(60dvh,520px); aspect-ratio:256 / 240; object-fit:contain; image-rendering:pixelated; background:#000 }
-#overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; background:#07121af2; padding:20px; text-align:center; color:#b9dded; font-size:13px }
-#overlay[hidden] { display:none } #overlay strong { font-size:17px; color:#f1fbff } #overlay .spinner { width:28px; height:28px; border:3px solid #335266; border-top-color:var(--a); border-radius:50%; animation:spin .85s linear infinite }
-@keyframes spin { to { transform:rotate(360deg) } }
-#status { padding:9px 12px; margin:10px 0 0; border:1px solid #28465a; color:#b6d3e0; background:#0f2637; font-size:12px; border-radius:9px }
-#status.bad { border-color:#b65c5c; background:#35202a; color:#ffe0db } #status.good { border-color:#367363; color:#b7efe0 }
-.controls { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid #243f59; background:#102236; border-radius:15px; padding:12px 13px; margin-top:12px; -webkit-user-select:none; user-select:none; touch-action:none }
-.dpad { display:grid; grid-template-columns:repeat(3,54px); grid-template-rows:repeat(3,49px); gap:2px; flex-shrink:0 }
-.gameButton { touch-action:none; border:1px solid #52768b; color:#dff8ff; background:#27455d; border-radius:11px; font-size:18px; font-weight:800; font-family:inherit; cursor:pointer; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent }
-.gameButton.pressed,.gameButton:active { background:var(--a); color:#041422; transform:scale(.96) }
-.gameButton:focus-visible { outline:2px solid var(--a); outline-offset:2px }
-.dpad .up { grid-row:1; grid-column:2 }.dpad .left { grid-row:2; grid-column:1 }.dpad .down { grid-row:2; grid-column:2 }.dpad .right { grid-row:2; grid-column:3 }
-.actions { display:flex; flex-direction:column; align-items:center; gap:13px; justify-content:center; flex:1 }
-.ab { display:flex; gap:13px; align-items:center; justify-content:center }
-.ab .gameButton { width:62px; height:62px; border-radius:50%; background:#772d4b; border-color:#c75881 }
-.ab .gameButton.pressed { background:var(--a); color:#05202b }
-.startSelect { display:flex; gap:12px }.startSelect .gameButton { padding:9px 12px; min-width:72px; font-size:11px; border-radius:30px }
-.tools { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap }
-.tool { background:#1b344a; color:#c5e7ed; border:1px solid #35566a; border-radius:9px; padding:8px 12px; font-size:12px; cursor:pointer }
-footer { color:#8faabb; font-size:11px; margin-top:14px; line-height:1.55 }
-a { color:#66e5d6 }
-@media(max-width:560px) {
- header { padding:12px 12px } .brand { font-size:12px; letter-spacing:1px }
- main { padding:2px 8px 15px } .screenShell { border-radius:11px } canvas { max-height:min(48dvh,480px) }
- .controls { padding:10px 6px; gap:5px; margin-top:8px } .dpad { grid-template-columns:repeat(3,min(14vw,49px));grid-template-rows:repeat(3,45px);gap:1px } .ab .gameButton { width:min(15vw,56px); height:min(15vw,56px) } .ab { gap:7px }
- .startSelect { gap:6px } .startSelect .gameButton { min-width:55px; padding:9px 7px; font-size:9px }
- .intro { margin-bottom:7px } footer { font-size:10px }
-}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#07080b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <title>NES</title>
+  <style>
+    :root{color-scheme:dark;--case:#bdbdb8;--case-edge:#e6e5df;--pad:#222427;--red:#bb1739;--pad-size:clamp(38px,11.3vw,55px);--action-size:clamp(49px,14.5vw,66px)}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#07080b}
+    body{font-family:Arial,Helvetica,sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+    button{font-family:inherit;cursor:pointer}
+    button:focus-visible{outline:3px solid #f2cb61;outline-offset:4px}
+    #console{width:100vw;height:100vh;height:100dvh;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;background:radial-gradient(ellipse at center,#191a1f 0%,#050607 80%)}
+    .display-area{min-height:0;display:flex;align-items:center;justify-content:center;padding:clamp(4px,1.2vmin,14px);overflow:hidden;touch-action:manipulation}
+    .screen-frame{position:relative;width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;border-radius:clamp(3px,1vmin,12px);box-shadow:0 0 0 2px #1f2023,0 8px 38px #000b}
+    canvas{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+    .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;pointer-events:none}
+    .loading[hidden]{display:none!important}
+    .loader{width:29px;height:29px;border:3px solid #32343a;border-top-color:#a0a0a0;border-radius:100%;animation:turn .9s linear infinite}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .error{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:18px;background:#090a0b;color:#f9eded;gap:12px;pointer-events:auto}
+    .error[hidden]{display:none!important}
+    .error span{font-size:14px;line-height:1.5;max-width:340px}
+    .retry{margin:0 auto;border:1px solid #777;border-radius:8px;background:#333;color:white;padding:10px 16px;font-size:13px}
+    .controller{position:relative;width:min(100%,840px);margin:0 auto;padding:clamp(15px,2.6vmin,24px) clamp(10px,2.5vmin,24px);padding-bottom:max(clamp(15px,2.6vmin,24px),env(safe-area-inset-bottom));background:linear-gradient(165deg,#d8d8d2 0%,var(--case) 58%,#949590 100%);border:5px solid #a4a5a0;border-top-color:var(--case-edge);border-left-color:var(--case-edge);border-radius:19px 19px 25px 25px;box-shadow:inset 0 3px 5px #ffffff75,inset 0 -5px 6px #0002,0 9px 24px #0009;touch-action:none}
+    .controller::before{content:'';position:absolute;inset:9px 10px auto;height:4px;background:#a1a39e99;border-radius:5px;pointer-events:none}
+    .controller-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,.55fr) minmax(0,1fr);align-items:end;justify-items:center;gap:clamp(3px,2vw,25px);min-height:calc(var(--pad-size)*3 + 2px)}
+    .dpad{position:relative;width:calc(var(--pad-size)*3);height:calc(var(--pad-size)*3);touch-action:none;isolation:isolate;cursor:pointer;flex-shrink:0}
+    .dpad::before,.dpad::after{content:'';position:absolute;background:linear-gradient(160deg,#313336,#111214);border:2px solid #44464a;box-shadow:inset 0 1px 0 #717275a0,0 4px 3px #0005;z-index:-1}
+    .dpad::before{top:33.333%;left:0;width:100%;height:33.333%;border-radius:7px}
+    .dpad::after{left:33.333%;top:0;width:33.333%;height:100%;border-radius:7px}
+    .dpad-center{position:absolute;left:calc(50% - var(--pad-size)*.32);top:calc(50% - var(--pad-size)*.32);width:calc(var(--pad-size)*.64);height:calc(var(--pad-size)*.64);border:1px solid #333;box-shadow:inset 1px 1px 2px #0008,0 1px 0 #ffffff16;border-radius:50%;background:#242628;pointer-events:none}
+    .dir{position:absolute;width:var(--pad-size);height:var(--pad-size);background:transparent;color:#4c4e50;border:0;display:grid;place-items:center;padding:0;touch-action:none;outline-offset:0}
+    .dir::after{content:'';width:0;height:0;border:4px solid transparent;filter:drop-shadow(0 1px 0 #0008)}
+    .dir[data-btn="UP"]{left:33.333%;top:0}.dir[data-btn="UP"]::after{border-bottom-color:#595b5d;transform:translateY(-2px)}
+    .dir[data-btn="DOWN"]{left:33.333%;bottom:0}.dir[data-btn="DOWN"]::after{border-top-color:#595b5d;transform:translateY(2px)}
+    .dir[data-btn="LEFT"]{left:0;top:33.333%}.dir[data-btn="LEFT"]::after{border-right-color:#595b5d;transform:translateX(-2px)}
+    .dir[data-btn="RIGHT"]{right:0;top:33.333%}.dir[data-btn="RIGHT"]::after{border-left-color:#595b5d;transform:translateX(2px)}
+    .dpad.held::before,.dpad.held::after{filter:brightness(1.14)}
+    .system{height:calc(var(--pad-size)*3);align-self:stretch;display:flex;align-items:flex-end;justify-content:center;gap:clamp(6px,.9vw,14px);padding-bottom:clamp(10px,1.2vmin,22px)}
+    .system-key{width:clamp(34px,6vw,58px);min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:9px;touch-action:none}
+    .system-key button{width:100%;height:17px;background:linear-gradient(#414143,#151618);border:2px solid #5b5c5a;border-radius:50px;box-shadow:inset 0 2px 3px #090909b0,0 2px 0 #e4e3de;touch-action:none}
+    .system-key button.pressed{background:linear-gradient(#171718,#434347);transform:translateY(1px)}
+    .system-key label{color:#6d2d3c;font-family:Arial, sans-serif;font-size:clamp(8px,1vw,11px);font-weight:800;letter-spacing:-.2px;white-space:nowrap;pointer-events:none}
+    .action-pad{position:relative;height:calc(var(--pad-size)*3);width:min(100%,200px);display:flex;align-items:center;justify-content:center;gap:clamp(12px,2vw,26px);padding-top:22px}
+    .action-well{display:grid;place-items:center;padding:5px;background:#888a89;border-radius:100%;box-shadow:inset 0 2px 4px #0006,0 1px 0 #fff6}
+    .action-button{width:var(--action-size);height:var(--action-size);padding:0;border-radius:50%;border:2px solid #8b0a2c;background:radial-gradient(circle at 28% 21%,#ea4560 0%,var(--red) 42%,#830d2a 93%);box-shadow:inset 0 2px 2px #ff799664,inset 0 -3px 4px #5d061b,0 4px 2px #0005;color:#ffe8ea;font-size:clamp(15px,3.5vw,23px);font-weight:900;touch-action:none}
+    .action-button.pressed,.action-button:active{transform:translateY(3px);box-shadow:inset 0 3px 6px #510716,0 1px 1px #0005;filter:brightness(.95)}
+    .action-well:first-child{transform:translateY(11px)}.action-well:last-child{transform:translateY(-10px)}
+    @media(orientation:portrait) and (max-width:650px){
+      #console{grid-template-rows:minmax(0,1fr) auto}
+      .controller{border-radius:19px 19px 0 0;border-bottom:0;width:100%;min-height:clamp(190px,31dvh,320px);display:flex;align-items:center;justify-content:center}
+      .controller-inner{width:100%}
+      .display-area{padding:5px 5px 10px}
+    }
+    @media(orientation:landscape) and (max-height:570px){
+      :root{--pad-size:clamp(35px,9vh,49px);--action-size:clamp(43px,11vh,63px)}
+      #console{grid-template-columns:minmax(0,1fr) minmax(290px,43%);grid-template-rows:1fr}
+      .display-area{padding:5px}
+      .controller{width:100%;height:100%;margin:0;display:flex;align-items:center;justify-content:center;border-radius:18px 0 0 18px;border-top-width:5px;padding:9px;min-width:0}
+      .controller-inner{width:100%;grid-template-columns:minmax(0,1fr) minmax(56px,.55fr) minmax(0,1fr);gap:3px}
+      .system-key{gap:7px}.system-key button{height:14px}.system-key label{font-size:8px}
+      .action-pad{gap:4px}.action-well{padding:3px}
+    }
+    @media(orientation:landscape) and (min-height:571px){
+      #console{grid-template-rows:minmax(0,1fr) auto}
+      .controller{height:clamp(185px,30dvh,246px)}
+      .controller-inner{height:100%}
+    }
+    @media(max-width:345px){
+      :root{--pad-size:36px;--action-size:46px}
+      .controller{padding-left:7px;padding-right:7px}.controller-inner{gap:2px}.system-key{width:33px}.system-key button{width:34px}
+      .action-pad{gap:2px}
+    }
+    @media(prefers-reduced-motion:reduce){.loader{animation:none}}
+  </style>
 </head>
 <body>
-<header><div class="brand"><b>8BIT</b> RETRO NFC</div><button class="tool" id="share" type="button">↗ Compartilhar</button></header>
-<main>
-<h1>Coleta-Estrelas <span>· NES</span></h1>
-<p class="intro">Teste com uma ROM original de NES · Setas para mover · Colete as estrelas</p>
-<div class="screenShell">
-  <div class="topbar">NFC / NES / TESTE 002</div>
-  <div class="screenBox">
-    <canvas id="screen" width="256" height="240" aria-label="Tela do jogo NES"></canvas>
-    <div id="overlay" role="status"><div class="spinner" id="spinner"></div><strong id="loadingTitle">Preparando o jogo...</strong><span id="loadingDetail">Baixando a ROM e o emulador</span></div>
-  </div>
-</div>
-<div id="status" role="status">Iniciando teste...</div>
-<div class="controls" aria-label="Controle de Nintendo NES">
-  <div class="dpad">
-    <button class="gameButton up" data-btn="UP" aria-label="Cima" type="button">▲</button>
-    <button class="gameButton left" data-btn="LEFT" aria-label="Esquerda" type="button">◀</button>
-    <button class="gameButton down" data-btn="DOWN" aria-label="Baixo" type="button">▼</button>
-    <button class="gameButton right" data-btn="RIGHT" aria-label="Direita" type="button">▶</button>
-  </div>
-  <div class="actions">
-    <div class="ab"><button class="gameButton" data-btn="B" type="button">B</button><button class="gameButton" data-btn="A" type="button">A</button></div>
-    <div class="startSelect"><button class="gameButton" data-btn="SELECT" type="button">SELECT</button><button class="gameButton" data-btn="START" type="button">START</button></div>
-  </div>
-</div>
-<div class="tools"><button id="restart" class="tool" type="button">↻ Reiniciar jogo</button><button id="reload" class="tool" type="button">⟳ Recarregar página</button></div>
-<footer>Controles no computador: setas para mover, <b>X</b> = A, <b>Z</b> = B, <b>Enter</b> = START e <b>Shift direito</b> = SELECT. No celular, use os botões acima.<p style="margin-top:6px">Jogo de demonstração original, sem ROMs comerciais. O emulador <a href="https://github.com/bfirsh/jsnes" target="_blank" rel="noopener">JSNES</a> é carregado pela internet. A TAG NFC pode abrir este mesmo endereço quando o teste funcionar.</p></footer>
+<main id="console" aria-label="Emulador de NES">
+  <section class="display-area" aria-label="Tela do jogo">
+    <div class="screen-frame" id="screenFrame">
+      <canvas id="screen" width="256" height="240" aria-label="Jogo NES em execução"></canvas>
+      <div class="loading" id="loading" role="status" aria-label="Carregando jogo"><div class="loader"></div></div>
+      <div class="error" id="error" role="alert" hidden><span id="errorText">Não foi possível carregar o jogo.</span><button class="retry" id="retry" type="button">Tentar novamente</button></div>
+    </div>
+  </section>
+  <section class="controller" aria-label="Controle NES">
+    <div class="controller-inner">
+      <div class="dpad" id="dpad" aria-label="Direcional">
+        <button type="button" class="dir" data-btn="UP" aria-label="Cima"></button>
+        <button type="button" class="dir" data-btn="LEFT" aria-label="Esquerda"></button>
+        <button type="button" class="dir" data-btn="RIGHT" aria-label="Direita"></button>
+        <button type="button" class="dir" data-btn="DOWN" aria-label="Baixo"></button>
+        <div class="dpad-center" aria-hidden="true"></div>
+      </div>
+      <div class="system">
+        <div class="system-key"><button type="button" data-btn="SELECT" aria-label="Select"></button><label>SELECT</label></div>
+        <div class="system-key"><button type="button" data-btn="START" aria-label="Start"></button><label>START</label></div>
+      </div>
+      <div class="action-pad">
+        <div class="action-well"><button type="button" class="action-button" data-btn="B" aria-label="Botão B">B</button></div>
+        <div class="action-well"><button type="button" class="action-button" data-btn="A" aria-label="Botão A">A</button></div>
+      </div>
+    </div>
+  </section>
 </main>
 <script>
 'use strict';
-const statusEl = document.querySelector('#status');
-const overlay = document.querySelector('#overlay');
-const titleEl = document.querySelector('#loadingTitle');
-const detailEl = document.querySelector('#loadingDetail');
-const spinner = document.querySelector('#spinner');
-const canvas = document.querySelector('#screen');
-const ctx = canvas.getContext('2d',{alpha:false});
-const rgba = ctx.createImageData(256,240);
-let nes = null, frames = 0, lastTick = 0, elapsed = 0, hasStarted=false;
-const pressed = new Map();
-function status(message,type='') { statusEl.textContent=message;statusEl.className=type; }
-function stage(title,detail){titleEl.textContent=title;detailEl.textContent=detail;}
-function fail(message){ status('ERRO: '+message,'bad');stage('Não foi possível iniciar', message);spinner.style.display='none';overlay.hidden=false;console.error('[RetroNFC]',message); }
+const canvas=document.querySelector('#screen');
+const ctx=canvas.getContext('2d',{alpha:false});
+const rgba=ctx.createImageData(256,240);
+const loading=document.querySelector('#loading');
+const error=document.querySelector('#error');
+const errorText=document.querySelector('#errorText');
+const pad=document.querySelector('#dpad');
+let nes=null, frames=0, lastTick=0, elapsed=0, gameActive=false;
+const pressed=new Map();
+function showError(message){loading.hidden=true;errorText.textContent=message;error.hidden=false;console.error('[NES]',message)}
+function showLoaded(){loading.hidden=true;error.hidden=true;gameActive=true}
 function loadScript(url){return new Promise((resolve,reject)=>{
- const el=document.createElement('script');el.src=url;el.async=true;const id=setTimeout(()=>{el.remove();reject(new Error('Tempo esgotado'))},12000);
- el.onload=()=>{clearTimeout(id);resolve()};el.onerror=()=>{clearTimeout(id);reject(new Error('Falha ao baixar o emulador'))};document.head.appendChild(el);
-});}
+  const el=document.createElement('script');el.src=url;el.async=true;
+  const timer=setTimeout(()=>{el.remove();reject(Error('Tempo esgotado'))},14000);
+  el.onload=()=>{clearTimeout(timer);resolve()};el.onerror=()=>{clearTimeout(timer);reject(Error('Não foi possível baixar o emulador'))};document.head.appendChild(el);
+})}
 async function ensureJSNES(){
- if(window.jsnes?.NES) return;
- const cdns=['https://cdn.jsdelivr.net/npm/jsnes@2.1.0/dist/jsnes.min.js','https://unpkg.com/jsnes@2.1.0/dist/jsnes.min.js','https://cdnjs.cloudflare.com/ajax/libs/jsnes/2.1.0/jsnes.min.js'];
- for(const cdn of cdns){try{await loadScript(cdn);if(window.jsnes?.NES)return;}catch(e){console.warn('[RetroNFC]',cdn,e.message)}}
- throw Error('Não foi possível carregar o JSNES. Verifique sua conexão ou bloqueadores de conteúdo.');
+  if(window.jsnes?.NES)return;
+  const cdns=[
+    'https://cdn.jsdelivr.net/npm/jsnes@2.1.0/dist/jsnes.min.js',
+    'https://unpkg.com/jsnes@2.1.0/dist/jsnes.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jsnes/2.1.0/jsnes.min.js'
+  ];
+  for(const url of cdns){try{await loadScript(url);if(window.jsnes?.NES)return}catch(e){console.warn('[NES]',url,e)}}
+  throw Error('Não foi possível carregar o emulador. Confira sua conexão com a internet.');
 }
-function imageFrame(buffer){
- const d=rgba.data;
- for(let i=0,j=0;i<buffer.length;i++,j+=4){const p=buffer[i];d[j]=p&255;d[j+1]=(p>>8)&255;d[j+2]=(p>>16)&255;d[j+3]=255;}
- ctx.putImageData(rgba,0,0);frames++;
- if(frames===4){overlay.hidden=true;status('✓ ROM NES carregada. Jogo em execução!','good');}
+function renderFrame(buffer){
+  const d=rgba.data;
+  for(let i=0,j=0;i<buffer.length;i++,j+=4){const p=buffer[i];d[j]=p&255;d[j+1]=p>>>8&255;d[j+2]=p>>>16&255;d[j+3]=255}
+  ctx.putImageData(rgba,0,0);frames++;
+  if(frames===3)showLoaded();
 }
-function activePress(name,source,down){
- if(!nes || !window.jsnes?.Controller)return;
- const b=window.jsnes.Controller['BUTTON_'+name];if(b===undefined) return;
- let holders=pressed.get(name);if(!holders){holders=new Set();pressed.set(name,holders)}
- const was=holders.size>0;
- if(down)holders.add(source);else holders.delete(source);
- if(!was && holders.size)nes.buttonDown(1,b);
- if(was && !holders.size)nes.buttonUp(1,b);
- document.querySelectorAll(`[data-btn="${name}"]`).forEach(el=>el.classList.toggle('pressed',holders.size>0));
+function keyState(name,source,down){
+  if(!nes||!window.jsnes?.Controller)return;
+  const b=window.jsnes.Controller['BUTTON_'+name];if(b===undefined)return;
+  let holders=pressed.get(name);if(!holders){holders=new Set();pressed.set(name,holders)}
+  const was=holders.size>0;
+  if(down)holders.add(source);else holders.delete(source);
+  if(!was&&holders.size)nes.buttonDown(1,b);
+  if(was&&!holders.size)nes.buttonUp(1,b);
+  for(const el of document.querySelectorAll(`[data-btn="${name}"]`))el.classList.toggle('pressed',holders.size>0);
 }
-const keymap={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',KeyX:'A',KeyZ:'B',Enter:'START',ShiftRight:'SELECT'};
-document.addEventListener('keydown',e=>{const btn=keymap[e.code];if(!btn)return;e.preventDefault();activePress(btn,'keyboard',true)});
-document.addEventListener('keyup',e=>{const btn=keymap[e.code];if(!btn)return;e.preventDefault();activePress(btn,'keyboard',false)});
-window.addEventListener('blur',()=>{for(const key of Object.values(keymap))activePress(key,'keyboard',false)});
-for(const el of document.querySelectorAll('[data-btn]')){
- const btn=el.dataset.btn;el.addEventListener('pointerdown',e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch{}activePress(btn,'pointer:'+e.pointerId,true)});
- for(const event of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(event,e=>{e.preventDefault();activePress(btn,'pointer:'+e.pointerId,false)});
- el.addEventListener('contextmenu',e=>e.preventDefault());
+const keymap={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',KeyX:'A',KeyZ:'B',Enter:'START',ShiftRight:'SELECT',KeyK:'B',KeyL:'A'};
+document.addEventListener('keydown',e=>{const name=keymap[e.code];if(name){e.preventDefault();keyState(name,'keyboard',true)}});
+document.addEventListener('keyup',e=>{const name=keymap[e.code];if(name){e.preventDefault();keyState(name,'keyboard',false)}});
+window.addEventListener('blur',()=>{for(const name of new Set(Object.values(keymap)))keyState(name,'keyboard',false);for(const name of ['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT'])keyState(name,'touch',false)});
+function immersive(){
+  if(document.fullscreenElement||window.matchMedia('(display-mode: fullscreen)').matches||window.matchMedia('(display-mode: standalone)').matches||navigator.standalone)return;
+  if(!document.documentElement.requestFullscreen)return;
+  try{const p=document.documentElement.requestFullscreen({navigationUI:'hide'});if(p?.catch)p.catch(()=>{})}catch(e){}
 }
-let padStates={};function scanGamepad(){
- if(!nes||!navigator.getGamepads)return;
- const pad=Array.from(navigator.getGamepads()||[]).find(Boolean);const next={};
- if(pad){const b=i=>Boolean(pad.buttons[i]?.pressed);const x=pad.axes[0]||0,y=pad.axes[1]||0;
- Object.assign(next,{UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)});}
- for(const key of ['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT']){
- const on=!!next[key];if(on!==!!padStates[key])activePress(key,'gamepad',on);
- }padStates=next;
+// The D-pad handles continuous movement, including sliding to a different direction and diagonals.
+function dpadMove(ev,source){
+  const box=pad.getBoundingClientRect();const x=(ev.clientX-box.left)/box.width-.5,y=(ev.clientY-box.top)/box.height-.5;
+  const next={UP:y<-.20,DOWN:y>.20,LEFT:x<-.20,RIGHT:x>.20};
+  if(Math.abs(x)<.14&&Math.abs(y)<.14)Object.keys(next).forEach(k=>next[k]=false);
+  for(const name of Object.keys(next))keyState(name,source,next[name]);
+  pad.classList.toggle('held',Object.values(next).some(Boolean));
 }
-function tick(t){if(!nes)return;scanGamepad();if(!lastTick)lastTick=t;elapsed+=Math.min(70,t-lastTick);lastTick=t;
- let steps=0;while(elapsed>=1000/60&&steps<3){try{nes.frame()}catch(e){nes=null;fail('Falha na execução da ROM: '+e.message);return} elapsed-=1000/60;steps++}
- if(steps===3&&elapsed>150)elapsed=0;
- requestAnimationFrame(tick);
+const padPointers=new Set();
+pad.addEventListener('pointerdown',e=>{
+  e.preventDefault();if(e.pointerType!=='mouse')immersive();
+  const source='dpad:'+e.pointerId;padPointers.add(source);
+  try{pad.setPointerCapture(e.pointerId)}catch(e){}
+  dpadMove(e,source);
+});
+pad.addEventListener('pointermove',e=>{const source='dpad:'+e.pointerId;if(padPointers.has(source)){e.preventDefault();dpadMove(e,source)}});
+function releasePad(e){const source='dpad:'+e.pointerId;if(!padPointers.has(source))return;padPointers.delete(source);for(const name of ['UP','DOWN','LEFT','RIGHT'])keyState(name,source,false);if(!padPointers.size)pad.classList.remove('held')}
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,releasePad);
+// Keep the A/B and Start/Select buttons responsive to multi-touch.
+for(const el of document.querySelectorAll('button[data-btn]:not(.dir)')){
+  const name=el.dataset.btn;
+  el.addEventListener('pointerdown',e=>{e.preventDefault();if(e.pointerType!=='mouse')immersive();try{el.setPointerCapture(e.pointerId)}catch{}keyState(name,'pointer:'+e.pointerId,true)});
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(type,e=>keyState(name,'pointer:'+e.pointerId,false));
+  el.addEventListener('contextmenu',e=>e.preventDefault());
 }
-async function start(){
- try{
- stage('Carregando ROM...','Conferindo jogos/coleta-estrelas.nes');status('Baixando a ROM NES...');
- const res=await fetch('./jogos/coleta-estrelas.nes',{cache:'no-store'});
- if(!res.ok)throw Error('ROM não encontrada: HTTP '+res.status+' (pasta jogos).');
- const buffer=new Uint8Array(await res.arrayBuffer());
- if(buffer.length<16||String.fromCharCode(...buffer.subarray(0,4))!=='NES\x1a')throw Error('O arquivo não possui cabeçalho NES válido.');
- stage('Carregando emulador...','JSNES para navegador');status('ROM encontrada ('+(buffer.length/1024).toFixed(1)+' KB). Carregando JSNES...');
- await ensureJSNES();
- let binary='';for(let i=0;i<buffer.length;i+=8192)binary+=String.fromCharCode(...buffer.subarray(i,i+8192));
- nes=new window.jsnes.NES({onFrame:imageFrame,emulateSound:false});
- nes.loadROM(binary); status('Emulador pronto. Iniciando o jogo...');stage('Iniciando NES...','Aguarde os primeiros quadros do jogo');
- hasStarted=true;requestAnimationFrame(tick);
- // If a core accepts the ROM but never produces a rendered frame, show the issue instead of a permanent black page.
- setTimeout(()=>{if(hasStarted&&frames<4){status('O emulador carregou, mas não produziu imagem. Confira o navegador e a ROM.','bad');stage('Sem imagem do jogo','Veja o aviso abaixo ou teste outro navegador.');spinner.style.display='none'}},5000);
- }catch(e){nes=null;fail(e.message||String(e));}
+let gamepadStates={};function pollGamepad(){
+  if(!nes||!navigator.getGamepads)return;
+  const gp=Array.from(navigator.getGamepads()||[]).find(Boolean),next={};
+  if(gp){const b=i=>Boolean(gp.buttons[i]?.pressed);const x=gp.axes[0]||0,y=gp.axes[1]||0;
+    Object.assign(next,{UP:b(12)||y<-.5,DOWN:b(13)||y>.5,LEFT:b(14)||x<-.5,RIGHT:b(15)||x>.5,A:b(0),B:b(1),START:b(9),SELECT:b(8)});
+  }
+  for(const k of ['UP','DOWN','LEFT','RIGHT','A','B','START','SELECT']){if(!!next[k]!==!!gamepadStates[k])keyState(k,'gamepad',!!next[k])}
+  gamepadStates=next;
 }
-document.querySelector('#restart').addEventListener('click',()=>{if(!nes){location.reload();return}nes.reset();status('Jogo reiniciado.','good');});
-document.querySelector('#reload').addEventListener('click',()=>location.reload());
-document.querySelector('#share').addEventListener('click',async()=>{try{if(navigator.share)await navigator.share({title:document.title,url:location.href});else{await navigator.clipboard.writeText(location.href);status('✓ Link copiado para compartilhar.','good')}}catch(e){if(e.name!=='AbortError')status('Copie o endereço diretamente na barra do navegador.')}});
-start();
+function tick(t){if(!nes)return;pollGamepad();if(!lastTick)lastTick=t;
+  elapsed+=Math.min(70,t-lastTick);lastTick=t;let n=0;
+  while(elapsed>=1000/60&&n<3){try{nes.frame()}catch(e){nes=null;showError('O jogo parou de executar.');return}elapsed-=1000/60;n++}
+  if(n===3&&elapsed>150)elapsed=0;
+  requestAnimationFrame(tick);
+}
+async function boot(){
+  try{
+    const rom=await fetch('./jogos/coleta-estrelas.nes',{cache:'no-store'});
+    if(!rom.ok)throw Error('ROM não encontrada. Verifique a pasta jogos no GitHub.');
+    const buffer=new Uint8Array(await rom.arrayBuffer());
+    if(buffer.length<16||String.fromCharCode(...buffer.subarray(0,4))!=='NES\x1a')throw Error('Arquivo NES inválido.');
+    await ensureJSNES();
+    let binary='';for(let i=0;i<buffer.length;i+=8192)binary+=String.fromCharCode(...buffer.subarray(i,i+8192));
+    nes=new window.jsnes.NES({onFrame:renderFrame,emulateSound:false});
+    nes.loadROM(binary);requestAnimationFrame(tick);
+    setTimeout(()=>{if(!gameActive&&nes){showError('O jogo não produziu imagem. Tente recarregar a página.')}},7000);
+  }catch(e){nes=null;showError(e.message||String(e))}
+}
+document.querySelector('#retry').addEventListener('click',()=>location.reload());
+document.querySelector('#screenFrame').addEventListener('dblclick',()=>immersive());
+boot();
 </script>
 </body>
 </html>
