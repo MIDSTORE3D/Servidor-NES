@@ -1,12 +1,13 @@
 {
-  "name": "NES — Retro NFC",
+  "id": "/Servidor-NES/",
+  "name": "Servidor-NES — Cartuchos NFC",
   "short_name": "NES",
-  "start_url": "./",
+  "start_url": "./?jogo=coleta-estrelas",
   "scope": "./",
   "display": "fullscreen",
-  "background_color": "#07080b",
-  "theme_color": "#07080b",
-  "orientation": "any",
+  "orientation": "landscape",
+  "background_color": "#0e1016",
+  "theme_color": "#0e1016",
   "icons": [
     {
       "src": "./icon-192.png",
